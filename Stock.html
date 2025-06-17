@@ -409,7 +409,7 @@ if (filtro.trim() !== "") {
       .in("centro", centros)
       .in("almacen", almacenes);
 
-    const { data: empresas } = await supabase.from("centros_empresas").select("*");
+    const { data: empresas } = await supabase.from("centros_empresa").select("*");
     if (!empresas) {
       Swal.fire({ title: "Error al cargar centros_empresas", icon: "error" });
       document.getElementById("loader").style.display = "none";
