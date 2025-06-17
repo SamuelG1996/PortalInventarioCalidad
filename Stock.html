@@ -408,7 +408,7 @@ window.procesarExcelSAP = async function(file) {
       .in("centro", centros)
       .in("almacen", almacenes);
 
-   const { data: empresas, error: errorEmpresas } = await supabase.from("centros_empresas").select("*");
+   const { data: empresas, error: errorEmpresas } = await supabase.from("centros_empresa").select("*");
     if (errorEmpresas || !empresas) {
   console.error("Error al obtener centros_empresas:", errorEmpresas);
   Swal.fire({
