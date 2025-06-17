@@ -386,7 +386,6 @@ if (filtro.trim() !== "") {
 
   reader.readAsBinaryString(file);
 }
-
 window.procesarExcelSAP = async function(file) {
   document.getElementById("loader").style.display = "flex";
   const reader = new FileReader();
@@ -395,6 +394,8 @@ window.procesarExcelSAP = async function(file) {
     const workbook = XLSX.read(e.target.result, { type: 'binary' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const data = XLSX.utils.sheet_to_json(sheet);
+
+    console.log("📦 Total registros en Excel:", data.length);
 
     let insertados = 0, actualizados = 0, eliminados = 0, errores = 0;
 
@@ -408,20 +409,21 @@ window.procesarExcelSAP = async function(file) {
       .in("centro", centros)
       .in("almacen", almacenes);
 
-   const { data: empresas, error: errorEmpresas } = await supabase.from("centros_empresa").select("*");
+    const { data: empresas, error: errorEmpresas } = await supabase.from("centros_empresa").select("*");
     if (errorEmpresas || !empresas) {
-  console.error("Error al obtener centros_empresas:", errorEmpresas);
-  Swal.fire({
-    icon: 'error',
-    title: 'Error al cargar empresas',
-    text: 'No se pudo obtener la relación centro-empresa desde Supabase.',
-    background: '#1e2022',
-    color: '#ffffff',
-    iconColor: '#f39c12'
-  });
-  document.getElementById("loader").style.display = "none";
-  return;
-}
+      console.error("❌ Error al obtener centros_empresa:", errorEmpresas);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error al cargar empresas',
+        text: 'No se pudo obtener la relación centro-empresa desde Supabase.',
+        background: '#1e2022',
+        color: '#ffffff',
+        iconColor: '#f39c12'
+      });
+      document.getElementById("loader").style.display = "none";
+      return;
+    }
+
     const { data: zonas } = await supabase.from("almacenes_zonas").select("*");
     const { data: descripciones } = await supabase
       .from("productos")
@@ -443,6 +445,7 @@ window.procesarExcelSAP = async function(file) {
       const cantidad_sap = parseFloat(fila["Cantidad SAP"]);
 
       if (!codigo || !centro || !almacen || !lote || isNaN(cantidad_sap)) {
+        console.warn("❌ Registro inválido:", fila);
         errores++;
         continue;
       }
@@ -462,28 +465,27 @@ window.procesarExcelSAP = async function(file) {
 
       if (existe) {
         updates.push({ ...clave, cantidad_sap, fecha_carga_sap });
+        console.log("🔄 Actualizando:", claveID);
       } else {
-        inserts.push({
-          ...clave,
-          cantidad_sap,
-          empresa,
-          zona,
-          descripcion,
-          fecha_carga_sap
-        });
+        inserts.push({ ...clave, cantidad_sap, empresa, zona, descripcion, fecha_carga_sap });
+        console.log("➕ Insertando:", claveID);
       }
     }
 
-    // 🔄 INSERTS
+    // ➕ INSERTS en bloques
     const chunkSize = 100;
     for (let i = 0; i < inserts.length; i += chunkSize) {
       const chunk = inserts.slice(i, i + chunkSize);
       const { error } = await supabase.from("stock_contrata").insert(chunk);
-      if (error) errores += chunk.length;
-      else insertados += chunk.length;
+      if (error) {
+        console.error("❌ Error insertando:", error);
+        errores += chunk.length;
+      } else {
+        insertados += chunk.length;
+      }
     }
 
-    // 🔄 UPDATES
+    // 🔄 UPDATES en bloques
     for (let i = 0; i < updates.length; i += chunkSize) {
       const chunk = updates.slice(i, i + chunkSize);
       const promesas = chunk.map(registro =>
@@ -496,10 +498,17 @@ window.procesarExcelSAP = async function(file) {
           .eq("lote", registro.lote)
       );
       const resultados = await Promise.all(promesas);
-      resultados.forEach(r => r.error ? errores++ : actualizados++);
+      resultados.forEach(r => {
+        if (r.error) {
+          console.warn("❌ Error al actualizar:", r.error);
+          errores++;
+        } else {
+          actualizados++;
+        }
+      });
     }
 
-    // 🧹 ELIMINADOS (optimizado)
+    // 🧹 ELIMINADOS
     for (const ca of centrosAlmacenes) {
       const [centro, almacen] = ca.split("||");
 
@@ -517,7 +526,13 @@ window.procesarExcelSAP = async function(file) {
         .eq("almacen", almacen)
         .not("clave", "in", clavesCentroAlmacen);
 
-      if (!error) eliminados += count ?? 0;
+      if (!error) {
+        eliminados += count ?? 0;
+        console.log(`🗑️ Eliminados en ${centro}-${almacen}:`, count);
+      } else {
+        console.error("❌ Error eliminando:", error);
+        errores++;
+      }
     }
 
     // ✅ ALERTA FINAL
@@ -525,14 +540,14 @@ window.procesarExcelSAP = async function(file) {
       icon: 'info',
       title: 'Carga completada',
       html: `
-        ✅ <b>${actualizados}</b> registros actualizados<br>
-        ➕ <b>${insertados}</b> registros insertados<br>
-        ❌ <b>${eliminados}</b> registros eliminados<br>
+        ✅ <b>${actualizados}</b> actualizados<br>
+        ➕ <b>${insertados}</b> insertados<br>
+        ❌ <b>${eliminados}</b> eliminados<br>
         ⚠️ <b>${errores}</b> errores`,
       toast: true,
       position: 'bottom-end',
       showConfirmButton: false,
-      timer: 5000,
+      timer: 6000,
       timerProgressBar: true,
       background: '#1e2022',
       color: '#ffffff',
@@ -545,6 +560,7 @@ window.procesarExcelSAP = async function(file) {
 
   reader.readAsBinaryString(file);
 };
+
     
   function renderizarControlesPaginacion() {
   const contenedor = document.getElementById("paginacion");
