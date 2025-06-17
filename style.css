@@ -105,6 +105,22 @@ h2 {
   opacity: 0.7;
 }
 
+/*ESTILOS POP UP RECUPERAR CONTRASEÑA*/
+
+.swal-popup-reducido {
+  font-size: 0.85em; /* texto general */
+}
+
+.swal-titulo-pequeno {
+  font-size: 1.2em; /* título */
+}
+
+.swal-footer-pequeno {
+  font-size: 0.75em; /* correo/teléfono */
+}
+
+/*FIN DE ESTILOS LOGIN*/
+
 /*MENU DISEÑO*/
 
 * {
