@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Portal Inventario || Stock Contratas</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="menu-page">
+
+  <div class="sidebar">
+    <div>
+      <div class="logo">
+  	<a href="/Menu" style="text-decoration: none; color: inherit;">Portal Inventario </a>
+      </div>
+      <div class="menu">
+        <a href="/Stock"><i class="fas fa-box"></i> Stock Contrata</a>
+        <a href="#"><i class="fas fa-warehouse"></i> Stock Claro</a>
+        <a href="/Traspaso"><i class="fas fa-sync-alt"></i> Traspasos</a>
+        <a href="#"><i class="fas fa-truck"></i> Compras</a>
+        <a href="#"><i class="fas fa-chart-bar"></i> Reportes</a>
+        <a href="/Perfil"><i class="fas fa-user-tie"></i> Mi Perfil</a>
+      	<a href="/CentroAyuda"><i class="fas fa-question-circle"></i> Soporte</a>
+        <a href="#"><i class="fas fa-gear"></i> Configuración</a>
+      </div>
+    </div>
+    <div class="logout">
+      <a href="/index" onclick="logout()"><i class="fas fa-sign-out-alt"></i></a>
+    </div>
+  </div>
+
+  <div id="loader" class="loader-overlay">
+    <div class="spinner"></div>
+  </div>
+  
+  <div class="content">
+    <div class="encabezado-stock">
+      <h2><i class="fas fa-box-open"></i> Visualización de Stock</h2>
+      <div class="acciones-tabla">
+        <button onclick="descargarExcel()">Descargar Excel</button>
+        <button onclick="mostrarMenuCargaStock()"><i class="fas fa-upload"></i> Actualizar Datos</button>
+         <button onclick="irASeries()">Ver Series</button>
+        <button id="btnActualizarSAP" style="display: none;" onclick="mostrarMenuCargaSAP()">
+        <i class="fas fa-file-upload"></i> Actualizar SAP
+      </button>
+        <input type="file" id="excelInput" accept=".xlsx" style="display:none;" onchange="confirmarCargaExcelStock(this.files[0])">
+        <input type="file" id="excelSAPInput" accept=".xlsx" style="display: none;" onchange="confirmarCargaExcelSAP(this.files[0])">
+      </div>
+    </div>
+<div class="search-bar-paginacion">
+  <input type="text" id="searchInput" placeholder="Buscar por código, descripción, almacén, zona..." oninput="filtrarTabla()">
+  <div id="paginacion" class="paginacion"></div>
+</div>
+
+
+    <div class="tabla-contenedor">
+      <table id="tablaStock">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Descripción</th>
+            <th>Centro</th>
+            <th>Almacén</th>
+            <th>Cantidad</th>
+            <th>Lote</th>
+            <th>Fecha SAP</th>
+            <th>Empresa</th>
+            <th>Zona</th>
+            <th>Stock físico</th>
+            <th>Reservado</th>
+            <th>Disponible</th>
+            <th>Fecha Data</th>
+          </tr>
+        </thead>
+        <tbody id="stock-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+      let tiempoEspera = null;
+    
+    function filtrarTabla() {
+      clearTimeout(tiempoEspera);
+      const input = document.getElementById("searchInput").value.toLowerCase().trim();
+      tiempoEspera = setTimeout(() => {
+        cargarStockContrata(input, 0); // Reinicia desde la primera página
+      }, 300);
+    }
+
+  async function descargarExcel() {
+  mostrarLoader();
+  const filtro = document.getElementById("searchInput").value.toLowerCase().trim();
+  const empresaUsuario = localStorage.getItem("empresa");
+  const rolUsuario = localStorage.getItem("rol");
+
+  const registrosTotales = [];
+  let desde = 0;
+  const paso = 1000;
+  let continuar = true;
+
+  while (continuar) {
+    let query = supabase
+      .from("stock_contrata")
+      .select("*")
+      .range(desde, desde + paso - 1);
+
+    if (rolUsuario === "Contratista") {
+      query = query.ilike("empresa", empresaUsuario.toUpperCase());
+    }
+
+    if (filtro !== "") {
+      const like = `%${filtro}%`;
+      query = query.or(`
+        codigo.ilike.${like},
+        descripcion.ilike.${like},
+        almacen.ilike.${like},
+        zona.ilike.${like},
+        empresa.ilike.${like}
+      `);
+    }
+
+    const { data, error } = await query;
+
+    if (error || !data || data.length === 0) {
+      continuar = false;
+    } else {
+      registrosTotales.push(...data);
+      desde += paso;
+      if (data.length < paso) continuar = false;
+    }
+  }
+
+  ocultarLoader();
+
+  if (registrosTotales.length === 0) {
+    Swal.fire({
+      icon: 'info',
+      title: 'Sin datos para exportar',
+      text: 'No se encontraron registros para descargar.',
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#f39c12',
+      toast: true,
+      position: 'bottom-end',
+      timer: 3000,
+      showConfirmButton: false,
+      timerProgressBar: true
+    });
+    return;
+  }
+
+  const rows = registrosTotales
+  .filter(item => item.cantidad_sap && parseFloat(item.cantidad_sap) !== 0)
+  .map(item => [
+    item.codigo,
+    item.descripcion,
+    item.centro,
+    item.almacen,
+    item.cantidad_sap != null ? Number(item.cantidad_sap) : "",
+    item.lote,
+    item.fecha_carga_sap ? new Date(item.fecha_carga_sap).toLocaleString("es-PE") : "—",
+    item.empresa,
+    item.zona,
+    item.stock_real ?? "",
+    item.stock_reservado ?? "",
+    item.stock_real != null && item.stock_reservado != null
+      ? item.stock_real - item.stock_reservado
+      : "—",
+    item.fecha_actualizacion ? new Date(item.fecha_actualizacion).toLocaleString("es-PE") : "—"
+  ]);
+
+  const headers = [
+    "Código", "Descripción", "Centro", "Almacén", "Cantidad SAP", "Lote", "Fecha SAP", "Empresa",
+    "Zona", "Stock físico", "Reservado", "Disponible", "Fecha Data"
+  ];
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  XLSX.utils.book_append_sheet(wb, ws, "Stock");
+  XLSX.writeFile(wb, "Stock_ClaroCorp.xlsx");
+}
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = "/index";
+    }
+
+    function irASeries() {
+  window.location.href = "/Series"; 
+}
+
+  </script>
+
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+    const supabaseUrl = 'https://bsrtuievwjtzwejuxqee.supabase.co'
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzcnR1aWV2d2p0endlanV4cWVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg1NTEyNjYsImV4cCI6MjA2NDEyNzI2Nn0.A9tCs-Zi-7jw5LUFs7ViIR2vHb9tNMj6c7YeeNOdmWI'
+    const supabase = createClient(supabaseUrl, supabaseKey)
+
+      window.supabase = supabase;
+    let paginaActual = 0;
+    const registrosPorPagina = 500;
+    let filtroActual = "";
+    let totalPaginas = 1;
+
+ document.addEventListener("DOMContentLoaded", () => {
+  const rolUsuario = localStorage.getItem("rol");
+  if (rolUsuario === "Administrador" || rolUsuario === "Soporte") {
+    document.getElementById("btnActualizarSAP").style.display = "inline-block";
+  }
+
+     // 🧹 Limpia el buscador al cargar
+  document.getElementById("searchInput").value = "";
+
+  // ✅ Inicia carga de stock al abrir la página
+  cargarStockContrata();
+});
+    
+    function formatearNumero(valor) {
+    const numero = parseFloat(valor);
+    if (isNaN(numero)) return valor;
+    return Number.isInteger(numero) ? numero.toString() : numero.toFixed(2);
+  }
+
+
+async function cargarStockContrata(filtro = "", pagina = 0) {
+  mostrarLoader();
+  const tbody = document.getElementById("stock-body");
+  tbody.innerHTML = "";
+
+  filtroActual = filtro;
+  paginaActual = pagina;
+
+  const desde = pagina * registrosPorPagina;
+  const hasta = desde + registrosPorPagina - 1;
+
+  const empresaUsuario = localStorage.getItem("empresa");
+  const rolUsuario = localStorage.getItem("rol");
+
+  let query = supabase
+  .from("stock_contrata")
+  .select("*", { count: "exact" })
+  .range(desde, hasta);
+
+// 🔒 Filtro por empresa si es contratista
+if (rolUsuario === "Contratista") {
+  query = query.ilike("empresa", empresaUsuario.toUpperCase());
+}
+
+// 🔍 Filtro global
+if (filtro.trim() !== "") {
+  const like = `%${filtro}%`;
+  query = query.or(
+    `codigo.ilike.${like},descripcion.ilike.${like},almacen.ilike.${like},zona.ilike.${like},empresa.ilike.${like}`
+  );
+}
+  const { data, error, count } = await query;
+
+  if (error) {
+    console.error("Error al cargar stock:", error);
+    ocultarLoader();
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="13" style="text-align:center; color:gray;">No se encontraron resultados.</td></tr>`;
+    ocultarLoader();
+    renderizarControlesPaginacion(0, 0);
+    return;
+  }
+
+  data.forEach((item) => {
+    if (!item.cantidad_sap || parseFloat(item.cantidad_sap) === 0) return;
+    const disponible = item.stock_real != null && item.stock_reservado != null
+      ? item.stock_real - item.stock_reservado
+      : "—";
+
+    const fechaSAP = item.fecha_carga_sap
+      ? new Date(item.fecha_carga_sap).toLocaleString("es-PE", {
+          day: "2-digit", month: "2-digit", year: "numeric",
+          hour: "2-digit", minute: "2-digit", hour12: false
+        }).replace(",", "")
+      : "—";
+
+    const fechaEditada = item.fecha_actualizacion
+      ? new Date(item.fecha_actualizacion).toLocaleString("es-PE", {
+          day: "2-digit", month: "2-digit", year: "numeric",
+          hour: "2-digit", minute: "2-digit", hour12: false
+        }).replace(",", "")
+      : "—";
+
+    const fila = `
+      <tr>
+        <td>${item.codigo}</td>
+        <td>${item.descripcion}</td>
+        <td>${item.centro}</td>
+        <td>${item.almacen}</td>
+        <td>${formatearNumero(item.cantidad_sap)}</td>
+        <td>${item.lote}</td>
+        <td>${fechaSAP}</td>
+        <td>${item.empresa}</td>
+        <td>${item.zona}</td>
+        <td>${formatearNumero(item.stock_real ?? "")}</td>
+        <td>${formatearNumero(item.stock_reservado ?? "")}</td>
+        <td>${formatearNumero(disponible)}</td>
+        <td>${fechaEditada}</td>
+      </tr>`;
+    tbody.insertAdjacentHTML("beforeend", fila);
+  });
+
+  totalPaginas = Math.ceil(count / registrosPorPagina);
+  renderizarControlesPaginacion();
+  ocultarLoader();
+}
+    window.cargarStockContrata = cargarStockContrata;
+
+  window.procesarExcelStock = async function(file) {
+  document.getElementById("loader").style.display = "flex";
+  const reader = new FileReader();
+
+  reader.onload = async (e) => {
+    const workbook = XLSX.read(e.target.result, { type: 'binary' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(sheet);
+
+    let exitos = 0, fallos = 0;
+
+    // Creamos un array de promesas para actualizaciones paralelas
+    const promesas = data.map(async (fila) => {
+      const codigo = fila['Código']?.toString().trim();
+      const centro = fila['Centro']?.toString().trim();
+      const almacen = fila['Almacén']?.toString().trim();
+      const lote = fila['Lote']?.toString().trim();
+
+      if (!codigo || !centro || !almacen || !lote) return false;
+
+      const stock_real = parseFloat(fila['Stock físico']);
+      const stock_reservado = parseFloat(fila['Reservado']);
+
+      if (isNaN(stock_real) || isNaN(stock_reservado) || stock_real < 0 || stock_reservado < 0) {
+        return false;
+      }
+
+      const fecha_actualizacion = new Date().toISOString();
+
+      const { error } = await supabase
+        .from('stock_contrata')
+        .update({ stock_real, stock_reservado, fecha_actualizacion })
+        .eq('codigo', codigo)
+        .eq('centro', centro)
+        .eq('almacen', almacen)
+        .eq('lote', lote);
+
+      return !error;
+    });
+
+    // Ejecutamos todas las promesas en paralelo
+    const resultados = await Promise.all(promesas);
+
+    // Contamos éxitos y fallos
+    resultados.forEach(r => r ? exitos++ : fallos++);
+
+
+    Swal.fire({
+      icon: 'info',
+      title: 'Carga finalizada',
+      html: `✅ Registros actualizados: <b>${exitos}</b><br>❌ Registros con error: <b>${fallos}</b>`,
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 4000,
+      timerProgressBar: true,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#f39c12'
+    });
+
+    await window.cargarStockContrata();
+    document.getElementById("loader").style.display = "none";
+  };
+
+  reader.readAsBinaryString(file);
+}
+
+
+window.procesarExcelSAP = async function(file) {
+  document.getElementById("loader").style.display = "flex";
+  const reader = new FileReader();
+
+  reader.onload = async (e) => {
+    const workbook = XLSX.read(e.target.result, { type: 'binary' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(sheet);
+
+    let insertados = 0, actualizados = 0, errores = 0;
+
+    for (const fila of data) {
+      const codigo = fila["Código"]?.toString().trim();
+      const centro = fila["Centro"]?.toString().trim();
+      const almacen = fila["Almacén"]?.toString().trim();
+      const lote = fila["Lote"]?.toString().trim();
+      const cantidad_sap = parseFloat(fila["Cantidad SAP"]);
+
+      if (!codigo || !centro || !almacen || !lote || isNaN(cantidad_sap)) {
+        errores++;
+        continue;
+      }
+
+      const { data: existe, error: errorSelect } = await supabase
+        .from("stock_contrata")
+        .select("codigo")
+        .eq("codigo", codigo)
+        .eq("centro", centro)
+        .eq("almacen", almacen)
+        .eq("lote", lote)
+        .maybeSingle();
+
+              const mapaEmpresas = {
+                "P4B6": "DESYSWEB",
+                "P4A3": "CYBERTEL",
+                "P4B9": "MATSU GROUP",
+                "P4D5": "LOS LAURELES",
+                // agrega más si es necesario
+              };
+              
+              const empresa = mapaEmpresas[centro] || "SIN EMPRESA";
+        
+                const mapaZonas = {
+                 "I115": "Lima",
+                 "X115": "Lima",                
+                 "Y115": "Lima",             
+                 "I104": "Arequipa",
+                 "Y104": "Arequipa",
+                 "X104": "Arequipa",
+                 "X105": "Ayacucho",
+                 "X111": "Ica",
+                 "X122": "San Martin",
+                 "X112": "Huancayo",
+                 "X110": "Huanuco",
+                // Agrega todos los que necesites
+              };
+              
+              const zona = mapaZonas[almacen] || "SIN ZONA";
+        // Buscar descripción desde tabla productos
+        const { data: maestro } = await supabase
+          .from("productos")
+          .select("descripcion")
+          .eq("codigo", codigo)
+          .maybeSingle();
+        
+        const descripcion = maestro?.descripcion || "SIN DESCRIPCIÓN";
+        
+        // Generar fecha SAP en horario Lima
+        const fecha_carga_sap = new Date().toLocaleString("sv-SE", { timeZone: "America/Lima" }).replace(" ", "T");
+      if (existe) {
+        const { error: errorUpdate } = await supabase
+          .from("stock_contrata")
+          .update({ cantidad_sap, fecha_carga_sap })
+          .eq("codigo", codigo)
+          .eq("centro", centro)
+          .eq("almacen", almacen)
+          .eq("lote", lote);
+
+        errorUpdate ? errores++ : actualizados++;
+      } else {
+        const { error: errorInsert } = await supabase
+          .from("stock_contrata")
+         .insert([{
+            codigo,
+            centro,
+            almacen,
+            lote,
+            cantidad_sap,
+            empresa,
+            zona,
+            descripcion,
+            fecha_carga_sap
+          }]);
+
+        errorInsert ? errores++ : insertados++;
+      }
+    }
+let eliminados = 0;
+            // ⛔ Eliminar registros antiguos del mismo centro+almacén no presentes en la nueva carga
+    const clavesActualizadas = new Set();
+    const centrosAlmacenes = new Set();
+    
+    data.forEach(fila => {
+      const codigo = fila["Código"]?.toString().trim();
+      const centro = fila["Centro"]?.toString().trim();
+      const almacen = fila["Almacén"]?.toString().trim();
+      const lote = fila["Lote"]?.toString().trim();
+    
+      if (codigo && centro && almacen && lote) {
+        const clave = `${codigo}||${centro}||${almacen}||${lote}`;
+        clavesActualizadas.add(clave);
+        centrosAlmacenes.add(`${centro}||${almacen}`);
+      }
+    });
+    
+    for (const ca of centrosAlmacenes) {
+      const [centro, almacen] = ca.split("||");
+    
+      const { data: existentes } = await supabase
+        .from("stock_contrata")
+        .select("codigo, centro, almacen, lote")
+        .eq("centro", centro)
+        .eq("almacen", almacen);
+    
+      if (existentes && existentes.length > 0) {
+        for (const r of existentes) {
+          const clave = `${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`;
+          if (!clavesActualizadas.has(clave)) {
+            await supabase
+              .from("stock_contrata")
+              .delete()
+              .eq("codigo", r.codigo)
+              .eq("centro", r.centro)
+              .eq("almacen", r.almacen)
+              .eq("lote", r.lote);
+              eliminados++; 
+          }
+        }
+      }
+    }
+
+    
+    Swal.fire({
+      icon: 'info',
+      title: 'Carga completada',
+      html: `
+        ✅ <b>${actualizados}</b> registros actualizados<br>
+        ➕ <b>${insertados}</b> registros insertados<br>
+        ❌ <b>${eliminados}</b> registros eliminados<br>
+        ⚠️ <b>${errores}</b> errores`,
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 5000,
+      timerProgressBar: true,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#f39c12'
+    });
+
+    await window.cargarStockContrata();
+    document.getElementById("loader").style.display = "none";
+  };
+
+  reader.readAsBinaryString(file);
+}
+
+    
+  function renderizarControlesPaginacion() {
+  const contenedor = document.getElementById("paginacion");
+  contenedor.innerHTML = "";
+
+  const btnAnterior = document.createElement("button");
+  btnAnterior.textContent = "←";
+  btnAnterior.disabled = paginaActual === 0;
+  btnAnterior.onclick = () => cargarStockContrata(filtroActual, paginaActual - 1);
+  contenedor.appendChild(btnAnterior);
+
+  const info = document.createElement("span");
+  info.textContent = `Página ${paginaActual + 1} de ${totalPaginas}`;
+  info.style.margin = "0 10px";
+  contenedor.appendChild(info);
+
+  const btnSiguiente = document.createElement("button");
+  btnSiguiente.textContent = "→";
+  btnSiguiente.disabled = paginaActual + 1 >= totalPaginas;
+  btnSiguiente.onclick = () => cargarStockContrata(filtroActual, paginaActual + 1);
+  contenedor.appendChild(btnSiguiente);
+}
+
+  
+</script>
+
+  <script>
+function mostrarMenuCargaStock() {
+  document.getElementById('excelInput').click();
+}
+
+function confirmarCargaExcelStock(file) {
+  Swal.fire({
+    title: '¿Deseas continuar con la actualización?',
+    text: 'Se reemplazarán los datos editables según el archivo seleccionado.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Sí, actualizar',
+    cancelButtonText: 'Cancelar',
+    background: '#1e2022',
+    color: '#ffffff',
+    iconColor: '#f39c12'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      procesarExcelStock(file);
+    }
+  });
+}
+
+</script>
+
+  <script>
+function mostrarMenuCargaSAP() {
+  Swal.fire({
+    title: 'Carga SAP',
+    text: '¿Qué deseas hacer?',
+    icon: 'question',
+    showDenyButton: true,
+    showCancelButton: true,
+    confirmButtonText: 'Subir carga',
+    denyButtonText: 'Descargar plantilla',
+    cancelButtonText: 'Cancelar',
+    background: '#1e2022',
+    color: '#ffffff',
+    iconColor: '#f39c12'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      document.getElementById('excelSAPInput').click();
+    } else if (result.isDenied) {
+      generarPlantillaSAP();
+    }
+  });
+}
+
+function generarPlantillaSAP() {
+  const wb = XLSX.utils.book_new();
+  const ws_data = [
+    ['Código', 'Centro', 'Almacén', 'Lote', 'Cantidad SAP']
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(ws_data);
+  XLSX.utils.book_append_sheet(wb, ws, 'Plantilla_SAP');
+  XLSX.writeFile(wb, 'Plantilla_Actualizacion_SAP.xlsx');
+}
+function confirmarCargaExcelSAP(file) {
+  Swal.fire({
+    title: '¿Actualizar cantidades SAP?',
+    text: 'Se actualizarán o insertarán registros según el archivo.',
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Sí, continuar',
+    cancelButtonText: 'Cancelar',
+    background: '#1e2022',
+    color: '#ffffff',
+    iconColor: '#f39c12'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      procesarExcelSAP(file);
+    }
+  });
+}
+</script>
+
+  <script src="Js/Loader.js"></script>
+  <script src="Js/Sesion.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Portal Inventario || Nueva Solicitud de Traspaso</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script>
+    const supabaseUrl = 'https://bsrtuievwjtzwejuxqee.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzcnR1aWV2d2p0endlanV4cWVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg1NTEyNjYsImV4cCI6MjA2NDEyNzI2Nn0.A9tCs-Zi-7jw5LUFs7ViIR2vHb9tNMj6c7YeeNOdmWI';
+    const { createClient } = supabase;
+  const supabaseClient = createClient(supabaseUrl, supabaseKey);
+  </script>
+</head>
+<body class="menu-page formulario-traspaso">
+  <div id="loader" class="loader-overlay" style="display: none;">
+    <div class="spinner"></div>
+  </div>
+  
+  <div class="content">
+    <a href="/Traspaso" class="volver"><i class="fas fa-arrow-left"></i>Volver a Traspasos</a>
+
+    <h2><i class="fas fa-sync-alt"></i> Nueva Solicitud de Traspaso</h2>
+
+    <div class="tabla-datos">
+      <table id="tablaSolicitud">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Descripción</th>
+            <th>Cantidad</th>
+            <th>Serie</th>
+            <th>Lote</th>
+            <th>UMB</th>
+            <th>Almacén Origen</th>
+            <th>Centro Origen</th>
+            <th>Contrata que entrega</th>
+            <th>Almacén Destino</th>
+            <th>Centro Destino</th>
+            <th>Contrata que recibe</th>
+            <th>Guia de Remisión</th>
+          </tr>
+        </thead>
+        <tbody id="tbodySolicitud">
+          <tr>
+            <td><input type="text" required></td>
+            <td><input type="text" required></td>
+            <td><input type="number" min="1" required></td>
+            <td><input type="text" required></td>
+            <td><input type="text" required></td>
+            <td><input type="text" required></td>
+            <td><input type="text" required></td>
+            <td><input type="text" required></td>
+            <td><input type="text" required></td>
+            <td><input type="text" required></td>
+            <td><input type="text" required></td>
+            <td><input type="text" required></td>
+            <td><input type="text" required></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="acciones-tabla">
+      <button onclick="agregarFila()"><i class="fas fa-plus-circle"></i> Agregar Fila</button>
+      <button onclick="eliminarFila()"><i class="fas fa-minus-circle"></i> Eliminar Fila</button>
+      <button onclick="descargarPlantillaExcel()"><i class="fas fa-file-excel"></i> Descargar Plantilla</button>
+      <button onclick="document.getElementById('archivoExcel').click()">
+        <i class="fas fa-upload"></i> Cargar Plantilla
+        </button>
+      <input type="file" id="archivoExcel" accept=".xlsx" onchange="cargarDesdeExcel()" style="display: none;">
+      </div>
+    </div>
+
+    <div class="campos-unicos">
+      <label>Tipo de Material:<br>
+      <select id="tipoMaterial" required>
+        <option value="">Seleccionar</option>
+        <option value="PINT">PINT</option>
+        <option value="PEXT">PEXT</option>
+      </select>
+      </label>
+     
+      <label>Área Solicitante:<br>
+      <input type="text" id="areaSolicitante" value="APROVISIONAMIENTO Y SOPORTE OPERATIVO" disabled required>
+      </label>
+      
+      <label>Datos del Solicitante:<br>
+      <input type="text" id="datosSolicitante" value="CLAUDIA HENRIQUEZ" disabled required>
+      </label>
+      
+      <label>Guía de Remisión (PDF, JPG, PNG):<br><input type="file" id="guiaRemision" accept=".pdf,.jpg,.jpeg,.png" required></label>
+    </div>
+    <div class="acciones-tabla">
+    <button onclick="guardarSolicitud()"><i class="fas fa-save"></i> Generar Solicitud</button>
+    </div>
+  </div>
+
+
+  <script>
+    
+function agregarFila() {
+  const tbody = document.getElementById('tbodySolicitud');
+  const row = tbody.rows[0].cloneNode(true);
+  
+  // Limpia todos los campos
+  row.querySelectorAll('input, select').forEach(input => input.value = '');
+
+  // Agrega el evento para convertir texto a mayúsculas en inputs de texto
+  row.querySelectorAll('input[type="text"]').forEach(input => {
+    input.addEventListener('input', function () {
+      this.value = this.value.toUpperCase();
+    });
+  });
+
+  tbody.appendChild(row);
+}
+
+    function eliminarFila() {
+    const tbody = document.getElementById('tbodySolicitud');
+    const filas = tbody.getElementsByTagName('tr');
+    if (filas.length > 1) {
+      tbody.removeChild(filas[filas.length - 1]);
+    } else {
+          Swal.fire({
+      icon: 'info',
+      title: 'No se puede eliminar',
+      text: 'Debe haber al menos una fila en la tabla.',
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#f39c12'
+    });
+    }
+  }
+    function descargarPlantillaExcel() {
+  const cabeceras = [
+    ["Código", "Descripción", "Cantidad", "Serie", "Lote", "UMB", "Almacén Origen", "Centro Origen", "Contrata que entrega", "Almacén Destino", "Centro Destino", "Contrata que recibe","Guia de remisión"]
+  ];
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(cabeceras);
+  XLSX.utils.book_append_sheet(wb, ws, "Traspaso");
+  XLSX.writeFile(wb, "Plantilla_Traspaso.xlsx");
+}
+    
+    function logout() {
+      localStorage.clear();
+      window.location.href = "/index";
+    }
+
+  </script>
+  
+ <script>
+  document.querySelectorAll('#tablaSolicitud input[type="text"]').forEach(input => {
+  input.addEventListener('input', function () {
+    this.value = this.value.toUpperCase();
+  });
+});
+ </script>
+  
+<script>
+function cargarDesdeExcel() {
+  const input = document.getElementById('archivoExcel');
+  const file = input.files[0];
+
+  if (!file || !file.name.endsWith(".xlsx")) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Archivo inválido',
+      text: 'Solo se permiten archivos con extensión .xlsx',
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#e74c3c'
+    });
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, { type: 'array' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const filas = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+    // Validar columnas
+    if (filas[0].length !== 13) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Formato incorrecto',
+        text: 'La plantilla debe tener exactamente 13 columnas.',
+        toast: true,
+        position: 'bottom-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+        background: '#1e2022',
+        color: '#ffffff',
+        iconColor: '#f1c40f'
+      });
+      return;
+    }
+
+    // Limpiar tabla y dejar solo 1 fila base
+    const tbody = document.getElementById('tbodySolicitud');
+    while (tbody.rows.length > 1) {
+      tbody.deleteRow(1);
+    }
+
+    // Iterar desde fila 1 (fila 0 es cabecera)
+    for (let i = 1; i < filas.length; i++) {
+      const datosFila = filas[i];
+
+      // Agregar fila si es necesario
+      if (i > 1) agregarFila();
+
+      const filaActual = tbody.rows[i - 1].querySelectorAll("input");
+      datosFila.forEach((valor, j) => {
+        if (filaActual[j]) filaActual[j].value = valor?.toString().toUpperCase();
+      });
+    }
+
+    Swal.fire({
+      icon: 'success',
+      title: 'Plantilla cargada',
+      text: 'Los campos han sido llenados correctamente.',
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#2ecc71'
+    });
+  };
+
+  reader.readAsArrayBuffer(file);
+}
+</script>
+
+<script>
+  function extraerNombreArchivoDesdeURL(urlCompleta) {
+  // Extrae solo el nombre, después de "traspasos/"
+  const partes = urlCompleta.split("traspasos/");
+  return partes.length > 1 ? partes[1] : urlCompleta;
+}
+</script>
+  
+<script>
+async function subirArchivoGuia(idSolicitud, archivo) {
+  const nombre = `${idSolicitud}_${archivo.name}`.replace(/\s+/g, "_");
+
+  const { data, error } = await supabaseClient.storage
+    .from("traspasos")
+    .upload(nombre, archivo, {
+      cacheControl: "3600",
+      upsert: true,
+    });
+
+  if (error) {
+    console.error("Error al subir archivo:", error.message);
+    throw new Error("No se pudo subir la guía de remisión.");
+  }
+
+  // ✅ CORRECTO: Extraer el publicUrl del campo `data.publicUrl`
+    const nombreSolo = extraerNombreArchivoDesdeURL(nombre);
+    const { data: signedUrlData, error: signedUrlError } = await supabaseClient.storage
+  .from("traspasos")
+   .createSignedUrl(nombre, 3888000); // ⏳ válido por 45 días
+
+if (signedUrlError) {
+  console.error("Error al obtener signed URL:", signedUrlError.message);
+  throw new Error("No se pudo generar el enlace de descarga.");
+}
+
+return signedUrlData.signedUrl;
+}
+</script>
+
+  
+<script>
+async function guardarSolicitud() {
+    mostrarLoader(); // <- Loader
+  const tipoMaterial = document.getElementById("tipoMaterial").value;
+  const areaSolicitante = document.getElementById("areaSolicitante").value;
+  const datosSolicitante = document.getElementById("datosSolicitante").value;
+  const archivo = document.getElementById("guiaRemision").files[0];
+  const filas = document.querySelectorAll("#tablaSolicitud tbody tr");
+
+  // Validaciones únicas
+  if (!tipoMaterial) {
+    Swal.fire({
+      icon: 'info',
+      title: 'Tipo de material requerido',
+      text: 'Debe seleccionar un tipo de material.',
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#f39c12'
+    });
+      ocultarLoader(); 
+    return;
+  }
+
+  if (!archivo) {
+    Swal.fire({
+      icon: 'info',
+      title: 'Guía requerida',
+      text: 'Debes adjuntar una guía de remisión.',
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#f39c12'
+    });
+      ocultarLoader(); 
+    return;
+  }
+// 🚨 Validación de extensión permitida
+const extensionesPermitidas = ['pdf', 'jpg', 'jpeg', 'png'];
+const extension = archivo.name.split('.').pop().toLowerCase();
+
+if (!extensionesPermitidas.includes(extension)) {
+  Swal.fire({
+    icon: 'error',
+    title: 'Archivo no permitido',
+    text: 'Solo se permiten archivos PDF, JPG o PNG.',
+    toast: true,
+    position: 'bottom-end',
+    showConfirmButton: false,
+    timer: 3000,
+    timerProgressBar: true,
+    background: '#1e2022',
+    color: '#ffffff',
+    iconColor: '#e74c3c'
+  });
+    ocultarLoader(); 
+  return;
+}
+  
+  // 🚨 Validación de tamaño máximo 10MB
+if (archivo.size > 5 * 1024 * 1024) {
+  Swal.fire({
+    icon: 'error',
+    title: 'Archivo muy grande',
+    text: 'El tamaño máximo permitido es 5 MB.',
+    toast: true,
+    position: 'bottom-end',
+    showConfirmButton: false,
+    timer: 3000,
+    timerProgressBar: true,
+    background: '#1e2022',
+    color: '#ffffff',
+    iconColor: '#e74c3c'
+  });
+    ocultarLoader(); 
+  return;
+}
+  
+  // Validación de tabla
+  for (let fila of filas) {
+    const inputs = fila.querySelectorAll("input");
+    for (let i = 0; i < inputs.length; i++) {
+      const valor = inputs[i].value.trim();
+
+      if (!valor) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Campos incompletos',
+          text: 'Todos los campos de la tabla son obligatorios.',
+          toast: true,
+          position: 'bottom-end',
+          showConfirmButton: false,
+          timer: 3000,
+          timerProgressBar: true,
+          background: '#1e2022',
+          color: '#ffffff',
+          iconColor: '#f39c12'
+        });
+          ocultarLoader(); 
+        return;
+      }
+
+      if (i === 2) { // Cantidad
+        const cantidad = Number(valor);
+        if (isNaN(cantidad) || cantidad <= 0) {
+          Swal.fire({
+            icon: 'info',
+            title: 'Cantidad inválida',
+            text: 'Debe ingresar un número mayor a 0.',
+            toast: true,
+            position: 'bottom-end',
+            showConfirmButton: false,
+            timer: 3000,
+            timerProgressBar: true,
+            background: '#1e2022',
+            color: '#ffffff',
+            iconColor: '#f39c12'
+          });
+            ocultarLoader(); 
+          return;
+        }
+      }
+    }
+  }
+
+  // Generar datos
+  const fechaActual = new Date().toISOString();
+  const fechaPeru = new Date();
+  
+  // Formato: 05/06/2025 09:22 a.m.
+  const fechaFormateada = fechaPeru.toLocaleString("es-PE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+  const contrataSolicitante = localStorage.getItem("empresa") || "No definida";
+  const usuarioSolicitante = localStorage.getItem("nombres") || "Anónimo";
+  
+  let responsableNombre = "";
+  let responsableCodigo = "";
+  
+  if (tipoMaterial === "PINT") {
+    responsableNombre = "Abel Chancahuaña";
+    responsableCodigo = "C0000325";
+  } else if (tipoMaterial === "PEXT") {
+    responsableNombre = "Samuel Guardia";
+    responsableCodigo = "C0000125";
+  } else {
+    responsableNombre = "No definido";
+    responsableCodigo = "ND";
+  }
+
+  const solicitudes = JSON.parse(localStorage.getItem("traspasos") || "[]");
+
+const nuevaSolicitud = {
+  contrata: contrataSolicitante,
+  solicitante: usuarioSolicitante,
+  area: areaSolicitante,
+  datos: datosSolicitante,
+  fecha_registro: fechaActual,
+  fecha_estado: fechaActual,
+  responsable_nombre: responsableNombre,
+  responsable_codigo: responsableCodigo,
+  estado: "Pendiente",
+  codigo_solicitante: localStorage.getItem("usuario") // ✅ ESTA ES LA NUEVA LÍNEA
+};
+
+const { data, error } = await supabaseClient
+  .from("traspasos")
+  .insert([nuevaSolicitud])
+  .select();
+
+if (error) {
+  Swal.fire({
+    icon: 'error',
+    title: 'Error al registrar',
+    text: error.message,
+    toast: true,
+    position: 'bottom-end',
+    showConfirmButton: false,
+    timer: 3000,
+    timerProgressBar: true,
+    background: '#1e2022',
+    color: '#ffffff',
+    iconColor: '#e74c3c'
+  });
+    ocultarLoader(); 
+  return;
+}
+const idSolicitud = data[0].id;
+
+let urlGuiaRemision = "";
+try {
+  urlGuiaRemision = await subirArchivoGuia(idSolicitud, archivo);
+} catch (errorSubida) {
+  Swal.fire({
+    icon: 'error',
+    title: 'Error al subir archivo',
+    text: errorSubida.message,
+    toast: true,
+    position: 'bottom-end',
+    showConfirmButton: false,
+    timer: 3000,
+    timerProgressBar: true,
+    background: '#1e2022',
+    color: '#ffffff',
+    iconColor: '#e74c3c'
+  });
+  ocultarLoader(); // 👈 Asegura que el loader se oculte si falla la subida
+  return;
+}
+// Inserta los detalles por cada fila a la tabla traspaso_detalle
+for (let fila of filas) {
+  const celdas = fila.querySelectorAll("input, select");
+
+  const detalle = {
+    id_traspaso: idSolicitud,
+    codigo: celdas[0].value,
+    descripcion: celdas[1].value,
+    cantidad: parseInt(celdas[2].value),
+    serie: celdas[3].value,
+    lote: celdas[4].value,
+    umb: celdas[5].value,
+    almacen_origen: celdas[6].value,
+    centro_origen: celdas[7].value,
+    contrata_entrega: celdas[8].value,
+    almacen_destino: celdas[9].value,
+    centro_destino: celdas[10].value,
+    contrata_recibe: celdas[11].value,
+    guia_remision: urlGuiaRemision,
+    guia_remision_texto: celdas[12].value, // ← Este es el input del número de guía
+    area_solicitante: areaSolicitante,
+    datos_solicitante: datosSolicitante
+  };
+
+  const { error: detalleError } = await supabaseClient.from("traspaso_detalle").insert([detalle]);
+
+  if (detalleError) {
+    console.error("Error al insertar detalle:", detalleError.message);
+    Swal.fire({
+      icon: 'error',
+      title: 'Error en detalle',
+      text: 'Uno o más ítems no se guardaron.',
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#e74c3c'
+    });
+      ocultarLoader(); 
+    return;
+  }
+}
+
+
+console.log("Enviando a Teams...");
+  // Notificación Microsoft Teams
+  fetch("/api/notificar-teams", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    texto: `📝 Nueva solicitud registrada: ID-${idSolicitud}\n\n💼 Contrata: ${contrataSolicitante}\n\n🧭 Solicitante: ${usuarioSolicitante}\n\n🛠️ Usuario responsable: ${responsableNombre}\n\n📅 Fecha: ${fechaFormateada}`
+  })
+});
+  
+  Swal.fire({
+    icon: 'success',
+    title: `Solicitud registrada`,
+    text: `${idSolicitud} fue generada exitosamente.`,
+    toast: true,
+    position: 'bottom-end',
+    showConfirmButton: false,
+    timer: 3000,
+    timerProgressBar: true,
+    background: '#1e2022',
+    color: '#ffffff',
+    iconColor: '#2ecc71'
+  });
+ocultarLoader(); // <- Cierre Loader
+
+  
+
+  setTimeout(() => window.location.href = "/Traspaso", 1000);
+}
+</script>
+
+
+<script src="Js/Loader.js"></script>
+<script src="Js/Sesion.js"></script>
+
+</body>
+</html>
+
+
+
+
+

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Portal Inventario || Mi Perfil</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+</head>
+<body class="menu-page">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div>
+      <div class="logo">
+        <a href="Menu.html" style="text-decoration: none; color: inherit;">Portal Inventario</a>
+      </div>
+      <div class="menu">
+        <a href="/Stock"><i class="fas fa-box"></i> Stock Contrata</a>
+        <a href="#"><i class="fas fa-warehouse"></i> Stock Claro</a>
+        <a href="/Traspaso"><i class="fas fa-sync-alt"></i> Traspasos</a>
+        <a href="#"><i class="fas fa-truck"></i> Compras</a>
+        <a href="#"><i class="fas fa-chart-bar"></i> Reportes</a>
+        <a href="/Perfil"><i class="fas fa-user-tie"></i> Mi Perfil</a>
+      	<a href="/CentroAyuda"><i class="fas fa-question-circle"></i> Soporte</a>
+        <a href="#"><i class="fas fa-gear"></i> Configuración</a>
+      </div>
+    </div>
+    <div class="logout">
+      <a href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i></a>
+    </div>
+  </div>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <div class="perfil-content">
+    <div class="perfil-box">
+      <div class="encabezado-stock">
+        <h2><i class="fas fa-user-circle"></i> Mi Perfil</h2>
+      </div>
+
+<!-- Reemplaza todo tu <form> actual desde <form id="perfilForm"> hasta el cierre del <script> por lo siguiente -->
+
+<form id="perfilForm" class="formulario-perfil">
+  <div class="grupo-form">
+    <label for="codigo_usuario">Código de usuario</label>
+    <input type="text" id="codigo_usuario" disabled>
+  </div>
+  <div class="grupo-form">
+    <label for="nombres">Nombres</label>
+    <input type="text" id="nombres" disabled>
+  </div>
+  <div class="grupo-form">
+    <label for="rol">Rol</label>
+    <input type="text" id="rol" disabled>
+  </div>
+  <div class="grupo-form">
+    <label for="empresa">Empresa</label>
+    <input type="text" id="empresa" disabled>
+  </div>
+  <div class="grupo-form">
+    <label for="correo">Correo electrónico</label>
+    <input type="email" id="correo">
+  </div>
+  <div class="grupo-form">
+    <label for="telefono">Teléfono</label>
+    <input type="text" id="telefono">
+  </div>
+  <div class="form-boton">
+    <button type="button" onclick="guardarCambios()">Guardar cambios</button>
+  </div>
+</form>
+
+<hr>
+
+<form id="passwordForm" class="formulario-perfil">
+  <h3 class="subtitulo">Cambiar Contraseña:</h3>
+  <div class="grupo-form">
+    <label for="contrasena_actual">Contraseña actual</label>
+    <input type="password" id="contrasena_actual">
+  </div>
+  <div class="grupo-form">
+    <label for="nueva_contrasena">Nueva contraseña</label>
+    <input type="password" id="nueva_contrasena">
+  </div>
+  <div class="grupo-form">
+    <label for="confirmar_contrasena">Confirmar nueva contraseña</label>
+    <input type="password" id="confirmar_contrasena">
+  </div>
+  <div class="form-boton">
+    <button type="button" onclick="guardarCambios()">Actualizar contraseña</button>
+  </div>
+</form>
+
+  <script>
+    const { createClient } = supabase;
+const supabaseClient = createClient(
+  'https://bsrtuievwjtzwejuxqee.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzcnR1aWV2d2p0endlanV4cWVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg1NTEyNjYsImV4cCI6MjA2NDEyNzI2Nn0.A9tCs-Zi-7jw5LUFs7ViIR2vHb9tNMj6c7YeeNOdmWI'
+);
+
+      document.addEventListener("DOMContentLoaded", async () => {
+    const codigo_usuario = localStorage.getItem("codigo_usuario");
+    if (!codigo_usuario) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Sesión no válida',
+        text: 'Por favor inicia sesión nuevamente.',
+        background: '#1a1a1a',
+        color: '#fff',
+        confirmButtonColor: '#e74c3c'
+      }).then(() => {
+        window.location.href = "index.html";
+      });
+      return;
+    }
+
+    const { data, error } = await supabaseClient
+      .from("usuarios")
+      .select("*")
+      .eq("codigo_usuario", codigo_usuario)
+      .single();
+
+    //console.log("📦 DATOS CARGADOS:", data);
+    //console.log("❌ ERROR:", error);
+
+    if (data) {
+      document.getElementById("codigo_usuario").value = data.codigo_usuario;
+      document.getElementById("nombres").value = data.nombre;
+      document.getElementById("rol").value = data.rol;
+      document.getElementById("empresa").value = data.empresa;
+      document.getElementById("correo").value = data.email || "";
+      document.getElementById("telefono").value = data.telefono || "";
+    }
+  });
+
+   async function guardarCambios() {
+    mostrarLoader();
+  
+    const correo = document.getElementById("correo").value.trim();
+    const telefono = document.getElementById("telefono").value.trim();
+    const contrasena_actual = document.getElementById("contrasena_actual").value;
+    const nueva_contrasena = document.getElementById("nueva_contrasena").value;
+    const confirmar_contrasena = document.getElementById("confirmar_contrasena").value;
+    const codigo_usuario = localStorage.getItem("codigo_usuario");
+  
+    if (!correo || !telefono) {
+      ocultarLoader();
+      Swal.fire({
+        icon: 'warning',
+        title: 'Campos vacíos',
+        text: 'Correo y teléfono no pueden estar vacíos.',
+        toast: true,
+        position: 'bottom-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+        background: '#1e2022',
+        color: '#ffffff',
+        iconColor: '#f39c12'
+      });
+      return;
+    }
+  
+    let cambios = { email: correo, telefono: telefono };
+  
+    if (contrasena_actual || nueva_contrasena || confirmar_contrasena) {
+      const actual = await supabaseClient
+        .from("usuarios")
+        .select("contrasena")
+        .eq("codigo_usuario", codigo_usuario)
+        .single();
+  
+      if (!actual || !actual.data || actual.data.contrasena !== contrasena_actual) {
+        ocultarLoader();
+        Swal.fire({
+          icon: 'error',
+          title: 'Contraseña incorrecta',
+          text: 'La contraseña actual no es válida.',
+          toast: true,
+          position: 'bottom-end',
+          showConfirmButton: false,
+          timer: 3000,
+          timerProgressBar: true,
+          background: '#1e2022',
+          color: '#ffffff',
+          iconColor: '#e74c3c'
+        });
+        return;
+      }
+  
+      if (nueva_contrasena !== confirmar_contrasena) {
+        ocultarLoader();
+        Swal.fire({
+          icon: 'error',
+          title: 'No coinciden',
+          text: 'La nueva contraseña no coincide con la confirmación.',
+          toast: true,
+          position: 'bottom-end',
+          showConfirmButton: false,
+          timer: 3000,
+          timerProgressBar: true,
+          background: '#1e2022',
+          color: '#ffffff',
+          iconColor: '#e74c3c'
+        });
+        return;
+      }
+  
+      cambios.contrasena = nueva_contrasena;
+    }
+  
+    const { error } = await supabaseClient
+      .from("usuarios")
+      .update(cambios)
+      .eq("codigo_usuario", codigo_usuario);
+  
+    ocultarLoader();
+  
+    if (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo guardar los cambios.',
+        toast: true,
+        position: 'bottom-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+        background: '#1e2022',
+        color: '#ffffff',
+        iconColor: '#e74c3c'
+      });
+      return;
+    }
+  
+    const mensaje = cambios.contrasena
+      ? 'Contraseña cambiada correctamente.'
+      : 'Cambios guardados correctamente.';
+  
+    Swal.fire({
+      icon: 'success',
+      title: 'Éxito',
+      text: mensaje,
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 2500,
+      timerProgressBar: true,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#11a24e'
+    });
+  
+    // Limpiar campos de contraseña
+    document.getElementById("contrasena_actual").value = "";
+    document.getElementById("nueva_contrasena").value = "";
+    document.getElementById("confirmar_contrasena").value = "";
+  }
+    function logout() {
+      localStorage.clear();
+      window.location.href = "index.html";
+    }
+  </script>
+<script src="Js/Loader.js"></script>
+<script src="Js/Sesion.js"></script>
+</body>
+</html>

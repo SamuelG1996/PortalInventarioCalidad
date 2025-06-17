@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+	<title>Portal Inventario || Login</title>
+	<link href="style.css" rel="stylesheet"/>
+	<link rel="preconnect" href="https://cdn.jsdelivr.net">
+	<link rel="preconnect" href="https://bsrtuievwjtzwejuxqee.supabase.co">
+	<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+</head>
+
+<body class="login-page">
+
+	<div class="login-container">
+	<form onsubmit="login(event)">
+		<div class="input-group">
+		<img alt="user" class="icon-left" src="https://cdn-icons-png.flaticon.com/512/1077/1077114.png"/>
+		<input name="codigo" placeholder="Código de usuario" required="" type="text"/>
+		</div>
+		<div class="input-group">
+		<img alt="lock" class="icon-left" src="https://cdn-icons-png.flaticon.com/512/3064/3064155.png"/>
+		<input id="pass" name="contrasena" placeholder="Contraseña" required="" type="password"/>
+		<img alt="Ver contraseña" class="icon-right" id="eye-icon" onclick="togglePassword()" src="https://cdn-icons-png.flaticon.com/512/159/159604.png"/>
+		</div>
+		<div class="options" style="display: flex; justify-content: space-between; align-items: center;">
+		<label><input type="checkbox"/> Recordarme</label>
+		<input class="login-btn" type="submit" value="LOGIN"/>
+		</div>
+	</form>
+	</div>
+
+	<div class="copyright">© 2025 Portal Inventario | Desarrollado por Samuel Guardia</div>
+
+	<script>
+	const supabaseUrl = 'https://bsrtuievwjtzwejuxqee.supabase.co';
+	const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzcnR1aWV2d2p0endlanV4cWVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg1NTEyNjYsImV4cCI6MjA2NDEyNzI2Nn0.A9tCs-Zi-7jw5LUFs7ViIR2vHb9tNMj6c7YeeNOdmWI';
+	const client = supabase.createClient(supabaseUrl, supabaseKey);
+
+	let isSubmitting = false;
+
+async function login(event) {
+  event.preventDefault();
+
+  if (isSubmitting) return;
+  isSubmitting = true;
+
+  document.getElementById('loader').style.display = 'flex';
+  const codigo = document.querySelector('input[name="codigo"]').value.trim().toUpperCase();
+  const password = document.querySelector('input[name="contrasena"]').value.trim();
+
+  try {
+    const { data, error } = await client
+      .from('usuarios')
+      .select('*')
+      .eq('codigo_usuario', codigo)
+      .eq('contrasena', password)
+      .single();
+
+    if (error || !data) {
+      throw new Error("Credenciales incorrectas");
+    }
+
+    localStorage.setItem('codigo_usuario', data.codigo_usuario);
+    localStorage.setItem('usuario', data.codigo_usuario);
+    localStorage.setItem('nombres', data.nombre);
+    localStorage.setItem('correo', data.email);
+    localStorage.setItem('telefono', data.telefono);
+    localStorage.setItem('rol', data.rol);
+    localStorage.setItem('empresa', data.empresa);
+setTimeout(() => {
+    window.location.href = "/Menu"; // Asegúrate que este archivo exista
+}, 300);
+
+  } catch (err) {
+    Swal.fire({
+      icon: 'error',
+      title: '<strong>Acceso Denegado</strong>',
+      html: '<small>Código de usuario o contraseña<br>incorrectos</small>',
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#e74c3c',
+      confirmButtonColor: '#e74c3c',
+      confirmButtonText: 'Entendido',
+      width: '320px',
+      padding: '1.5em',
+    });
+  } finally {
+    document.getElementById('loader').style.display = 'none';
+    isSubmitting = false;
+  }
+}
+</script>
+<script>
+window.addEventListener('load', async () => {
+  // Calienta Supabase
+  await client.from('usuarios').select('id').limit(1);
+
+  // Oculta loader
+  setTimeout(() => {
+    document.getElementById('loader').style.display = 'none';
+  }, 300);
+});
+</script>
+
+<script>
+	function togglePassword() {
+	  const pass = document.getElementById("pass");
+	  const icon = document.getElementById("eye-icon");
+	  if (pass.type === "password") {
+		pass.type = "text";
+		icon.src = "https://raw.githubusercontent.com/SamuelG1996/clarocorp-inventario/main/Imagenes/Ojo%20Cerrado(2).png";
+	  } else {
+		pass.type = "password";
+		icon.src = "https://raw.githubusercontent.com/SamuelG1996/clarocorp-inventario/main/Imagenes/Ojo%20Abierto.png";
+	  }
+	}
+
+</script>
+	
+	<div id="loader" class="loader-overlay" style="display: none;">
+	<div class="spinner"></div>
+	</div>
+	
+</body>
+</html>

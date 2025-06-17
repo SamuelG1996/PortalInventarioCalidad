@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Portal Inventario || Menu Principal</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css"> <!-- Tu archivo CSS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script>
+    const { createClient } = supabase;  
+    const supabaseClient = createClient('https://bsrtuievwjtzwejuxqee.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzcnR1aWV2d2p0endlanV4cWVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg1NTEyNjYsImV4cCI6MjA2NDEyNzI2Nn0.A9tCs-Zi-7jw5LUFs7ViIR2vHb9tNMj6c7YeeNOdmWI');
+
+	document.addEventListener('DOMContentLoaded', () => {
+	  const usuario = localStorage.getItem('codigo_usuario');
+	  if (!usuario) {
+		window.location.href = 'index.html';
+	  }
+	});
+
+	function logout() {
+	  localStorage.clear(); // Limpia todo el almacenamiento local
+	  window.location.href = '/index';
+	}
+  </script>
+</head>
+<body class="menu-page">
+
+  <div class="sidebar">
+    <div>
+      <div class="logo">
+  	<a href="/Menu" style="text-decoration: none; color: inherit;">Portal Inventario </a>
+      </div>
+      <div class="menu">
+        <a href="/Stock"><i class="fas fa-box"></i> Stock Contrata</a>
+        <a href="#"><i class="fas fa-warehouse"></i> Stock Claro</a>
+        <a href="/Traspaso"><i class="fas fa-sync-alt"></i> Traspasos</a>
+        <a href="#"><i class="fas fa-truck"></i> Compras</a>
+        <a href="#"><i class="fas fa-chart-bar"></i> Reportes</a>
+        <a href="/Perfil"><i class="fas fa-user-tie"></i> Mi Perfil</a>
+	<a href="/CentroAyuda"><i class="fas fa-question-circle"></i> Soporte</a>
+        <a href="#"><i class="fas fa-gear"></i> Configuración</a>
+      </div>
+    </div>
+    <div class="logout">
+      <a href="#" onclick="logout()"><i class="fas fa-sign-out-alt"></i></a>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="topbar">Comunicados</div>
+    <div class="main-content">
+        <p id="saludo"></p>
+    </div>
+  </div>
+  
+  <script>
+	/*MENSAJE DE BIENVENIDA*/
+	function saludoPorHora() {
+	    const hora = new Date().getHours();
+	    if (hora >= 5 && hora < 12) return { saludo: "¡Buenos días!", emoji: "🌞" };
+	    if (hora >= 12 && hora < 19) return { saludo: "¡Buenas tardes!", emoji: "☕" };
+	    return { saludo: "¡Buenas noches!", emoji: "🌙" };
+	  }
+	
+	  const nombre = localStorage.getItem('nombres');
+	  const { saludo, emoji } = saludoPorHora();
+	
+	  if (nombre) {
+	    document.getElementById('saludo').textContent = `${saludo} ${emoji} ${nombre}, ¡Listos para trabajar juntos! 💻`;
+	  }
+	 /*FIN DE MENSAJE DE BIENVENIDA*/ 
+
+  </script>
+
+	<script src="Js/Sesion.js"></script>
+  
+</body>
+</html>
+

@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Detalle de Solicitud</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body class="menu-page formulario-traspaso detalle-solicitud">
+  <div id="loader" class="loader-overlay">
+  <div class="spinner"></div>
+  </div>
+  <div class="content">
+    <a href="Traspaso.html" class="volver"><i class="fas fa-arrow-left"></i>Volver a Traspasos</a>
+
+    <h2><i class="fas fa-eye"></i> Detalle de Solicitud</h2>
+
+    <div class="tabla-datos">
+      <div class="tabla-scroll">
+        <table id="tablaDetalle">
+          <thead>
+            <tr>
+              <th>Código</th><th>Descripción</th><th>Cantidad</th><th>Serie</th><th>Lote</th><th>UMB</th>
+              <th>Alm. Origen</th><th>Centro Origen</th><th>Contrata Entrega</th>
+              <th>Alm. Destino</th><th>Centro Destino</th><th>Contrata Recibe</th><th>Guía</th><th>Observación</th><th>Contabilizado</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+    <div class="acciones-tabla">
+      <button onclick="exportarExcel()"><i class="fas fa-file-excel"></i> Descargar Excel</button>
+            <button id="btnDescargarGuia" style="display: none;"><i class="fas fa-download"></i> Descargar Guía Adjunta</button>
+      <button onclick="confirmarCambioEstado('Atendido')">
+        <i class="fas fa-check-circle"></i> Aprobar
+      </button>
+      <button onclick="confirmarCambioEstado('Observado')">
+        <i class="fas fa-exclamation-circle"></i> Observar
+      </button>
+      <button id="btnEditar" onclick="editarDetalle()">
+      <i class="fas fa-pen"></i> Editar Detalle
+      </button>
+    </div>
+    </div>
+  </div>
+
+  <script>
+    const createClient = window.supabase.createClient;
+    const supabaseClient = createClient(
+      "https://bsrtuievwjtzwejuxqee.supabase.co",
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzcnR1aWV2d2p0endlanV4cWVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg1NTEyNjYsImV4cCI6MjA2NDEyNzI2Nn0.A9tCs-Zi-7jw5LUFs7ViIR2vHb9tNMj6c7YeeNOdmWI"
+    );
+    const supabase = supabaseClient;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const id = urlParams.get("id");
+document.addEventListener("DOMContentLoaded", async () => {
+  mostrarLoader();
+  const rol = localStorage.getItem("rol");
+
+// Ocultar botones para roles no autorizados, pero continuar carga
+if (!["Administrador", "Supervisor", "Soporte"].includes(rol)) {
+  const btnAprobar = document.querySelector("button[onclick*='Aprobar']");
+  const btnObservar = document.querySelector("button[onclick*='Observar']");
+  if (btnAprobar) btnAprobar.style.display = "none";
+  if (btnObservar) btnObservar.style.display = "none";
+}
+// NO hacemos return aquí, para que se cargue la tabla normalmente
+
+  if (!id) {
+    ocultarLoader();
+    Swal.fire({ icon: 'error', title: 'ID de solicitud no encontrado.' });
+    return;
+  }
+
+  try {
+    const { data: detalles, error: errorDetalles } = await supabase
+      .from("traspaso_detalle")
+      .select("*")
+      .eq("id_traspaso", id);
+
+    if (errorDetalles) throw errorDetalles;
+
+    const btnGuia = document.getElementById("btnDescargarGuia");
+    if (detalles.length > 0 && detalles[0].guia_remision) {
+      if (btnGuia) {
+        btnGuia.style.display = "inline-block";
+        btnGuia.onclick = () => {
+          window.open(detalles[0].guia_remision, "_blank");
+        };
+      }
+    }
+
+    const tbody = document.querySelector("#tablaDetalle tbody");
+    if (!tbody) {
+      ocultarLoader();
+      Swal.fire({ icon: 'error', title: 'Tabla no encontrada.' });
+      return;
+    }
+
+    if (detalles.length === 0) {
+      const filaVacia = document.createElement("tr");
+      filaVacia.innerHTML = `<td colspan="13" style="text-align:center;">No se encontraron detalles para esta solicitud.</td>`;
+      tbody.appendChild(filaVacia);
+    } else {
+      detalles.forEach(det => {
+        const fila = document.createElement("tr");
+        fila.innerHTML = `
+          <td>${det.codigo}</td>
+          <td>${det.descripcion}</td>
+          <td class="td-center">${det.cantidad}</td>
+          <td class="td-left">${det.serie}</td>
+          <td class="td-center">${det.lote}</td>
+          <td class="td-center">${det.umb}</td>
+          <td class="td-center">${det.almacen_origen}</td>
+          <td class="td-center">${det.centro_origen}</td>
+          <td class="td-center">${det.contrata_entrega}</td>
+          <td class="td-center">${det.almacen_destino}</td>
+          <td class="td-center">${det.centro_destino}</td>
+          <td class="td-center">${det.contrata_recibe}</td>
+          <td class="td-center">${det.guia_remision_texto || '—'}</td>
+          <td class="td-left">${det.comentario_observacion || '—'}</td>
+          <td class="td-center">${det.contabilizado || '—'}</td>
+        `;
+        tbody.appendChild(fila);
+      });
+    }
+
+  } catch (err) {
+    Swal.fire({ icon: 'error', title: 'Error al cargar datos', text: err.message });
+  } finally {
+    ocultarLoader();
+  }
+});
+
+  function exportarExcel() {
+    const wb = XLSX.utils.book_new();
+    const tabla = document.getElementById("tablaDetalle");
+    const ws = XLSX.utils.table_to_sheet(tabla);
+    XLSX.utils.book_append_sheet(wb, ws, "DetalleSolicitud");
+    XLSX.writeFile(wb, `Solicitud_${id}.xlsx`);
+  }
+
+  function logout() {
+    localStorage.clear();
+    window.location.href = "index.html";
+  }
+</script>
+
+<script>
+async function enviarCorreo({ to, subject, body }) {
+  try {
+    const { error } = await supabase
+      .from("correo_saliente")
+      .insert({
+        para: to,
+        asunto: subject,
+        contenido: body,
+        fecha_envio: new Date().toISOString()
+      });
+
+    if (error) {
+      console.error("Error al guardar correo en la base de datos:", error.message);
+    }
+  } catch (err) {
+    console.error("Error al ejecutar enviarCorreo:", err);
+  }
+}
+</script>
+  
+<script>
+async function actualizarEstadoSolicitud(nuevoEstado, campoExtra) {
+  if (!id) return;
+
+  mostrarLoader();
+
+  // 1. Actualizar estado general en traspasos
+  const { error: errorTraspasos } = await supabase
+    .from("traspasos")
+    .update({
+      estado: nuevoEstado,
+      fecha_estado: new Date().toISOString()
+    })
+    .eq("id", id);
+
+  // 2. Actualizar detalle según estado
+  let camposDetalle = {};
+  if (nuevoEstado === "Atendido") {
+    camposDetalle.contabilizado = campoExtra || null;
+    camposDetalle.comentario_observacion = "-";
+  } else if (nuevoEstado === "Observado") {
+    camposDetalle.comentario_observacion = campoExtra || null;
+  }
+
+  let errorDetalle = null;
+  if (Object.keys(camposDetalle).length > 0) {
+    const { error } = await supabase
+      .from("traspaso_detalle")
+      .update(camposDetalle)
+      .eq("id_traspaso", id);
+
+    errorDetalle = error;
+  }
+
+  // 3. Enviar correo al solicitante si el estado es Atendido u Observado
+  const { data: solicitud, error: errorSolicitud } = await supabase
+  .from("traspasos")
+  .select("codigo_solicitante, solicitante")
+  .eq("id", id)
+  .single();
+
+let codigoUsuario = solicitud?.codigo_solicitante;
+
+if (!codigoUsuario) {
+  const { data: userByName } = await supabase
+    .from("usuarios")
+    .select("codigo")
+    .ilike("nombre", `%${solicitud.solicitante}%`)
+    .maybeSingle();
+
+  codigoUsuario = userByName?.codigo;
+}
+
+if (codigoUsuario) {
+  const { data: usuario, error: errorUsuario } = await supabase
+    .from("usuarios")
+    .select("email")
+    .eq("codigo", codigoUsuario)
+    .single();
+
+  if (!errorUsuario && usuario?.email) {
+    await enviarCorreo({
+      to: usuario.email,
+      subject: `Solicitud ID-${id} fue ${nuevoEstado.toLowerCase()}`,
+      body: nuevoEstado === "Pendiente"
+        ? `La solicitud ID-${id} fue editada y actualmente se encuentra pendiente de atención.`
+        : `La solicitud ID-${id} fue ${nuevoEstado.toLowerCase()}.`
+    });
+  }
+}
+
+  ocultarLoader();
+
+  if (errorTraspasos || errorDetalle) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Error al actualizar',
+      text: (errorTraspasos || errorDetalle)?.message || 'Error desconocido.',
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#e74c3c'
+    });
+  } else {
+    Swal.fire({
+      icon: 'info',
+      title: `Solicitud ${nuevoEstado}`,
+      text: 'Se actualizó correctamente en la base de datos.',
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#f39c12'
+    });
+
+    setTimeout(() => {
+      window.location.href = "Traspaso.html";
+    }, 1500);
+  }
+}
+</script>
+
+
+<script>
+let modoEdicionActivo = false;
+
+async function editarDetalle() {
+  const usuarioActual = localStorage.getItem("usuario") || "";
+  const rol = localStorage.getItem("rol") || "";
+
+  const { data: solicitud, error } = await supabase
+    .from("traspasos")
+    .select("estado, solicitante, responsable_nombre, responsable_codigo")
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    Swal.fire({ icon: 'error', title: 'Error al consultar solicitud', text: error.message });
+    return;
+  }
+
+  const estado = solicitud.estado;
+  const esCreador = solicitud.solicitante === usuarioActual;
+  const esResponsable = solicitud.responsable_nombre === usuarioActual;
+  const tieneRolPermitido = ["Administrador", "Supervisor"].includes(rol);
+
+  if (estado === "Atendido" || estado === "Anulado") {
+    document.getElementById("btnEditar").disabled = true;
+    Swal.fire({
+      icon: 'info',
+      title: `La solicitud tiene estado ${estado}`,
+      text: 'No se puede editar una solicitud que ya fue atendida o anulada.',
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 3000,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#f39c12'
+    });
+    return;
+  }
+
+  if (estado === "Observado" && (esCreador || esResponsable || tieneRolPermitido)) {
+    const filas = document.querySelectorAll("#tablaDetalle tbody tr");
+
+    if (!modoEdicionActivo) {
+      filas.forEach(fila => {
+        const celdas = fila.querySelectorAll("td");
+        const camposEditables = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+        camposEditables.forEach(i => {
+          const texto = celdas[i].innerText;
+          celdas[i].innerHTML = `<input value="${texto}" class="swal2-input" style="width:100%; font-size: 12px;" />`;
+        });
+      });
+      modoEdicionActivo = true;
+      document.getElementById("btnEditar").innerHTML = `<i class="fas fa-save"></i> Guardar Cambios`;
+    } else {
+      Swal.fire({
+        title: '¿Guardar cambios?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Guardar',
+        cancelButtonText: 'Cancelar',
+        background: '#1e2022',
+        color: '#ffffff',
+        iconColor: '#f39c12'
+      }).then(async (result) => {
+        if (result.isConfirmed) {
+          mostrarLoader();
+
+          const nuevasFilas = document.querySelectorAll("#tablaDetalle tbody tr");
+          const updates = [];
+
+          nuevasFilas.forEach(fila => {
+            const inputs = fila.querySelectorAll("input");
+            const codigo = fila.children[0].innerText;
+
+            updates.push({
+              codigo: codigo,
+              descripcion: inputs[0].value.trim(),
+              cantidad: inputs[1].value.trim(),
+              serie: inputs[2].value.trim(),
+              lote: inputs[3].value.trim(),
+              umb: inputs[4].value.trim(),
+              almacen_origen: inputs[5].value.trim(),
+              centro_origen: inputs[6].value.trim(),
+              contrata_entrega: inputs[7].value.trim(),
+              almacen_destino: inputs[8].value.trim(),
+              centro_destino: inputs[9].value.trim(),
+              contrata_recibe: inputs[10].value.trim(),
+              guia_remision_texto: inputs[11].value.trim()
+            });
+          });
+
+          for (let item of updates) {
+            await supabase
+              .from("traspaso_detalle")
+              .update(item)
+              .eq("id_traspaso", id)
+              .eq("codigo", item.codigo);
+          }
+
+          await supabase
+            .from("traspasos")
+            .update({ estado: "Pendiente", fecha_estado: new Date().toISOString() })
+            .eq("id", id);
+
+          await enviarCorreo(solicitud.responsable_codigo, `La solicitud ID-${id} fue editada y actualmente se encuentra pendiente de atención.`);
+
+          ocultarLoader();
+          Swal.fire({
+            icon: 'success',
+            title: 'Editado con éxito',
+            text: 'La solicitud ha sido actualizada.',
+            toast: true,
+            position: 'bottom-end',
+            showConfirmButton: false,
+            timer: 3000,
+            background: '#1e2022',
+            color: '#ffffff',
+            iconColor: '#2ecc71'
+          });
+
+          setTimeout(() => location.reload(), 1500);
+        }
+      });
+    }
+  } else {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Sin permisos',
+      text: 'Solo puede editar la solicitud el solicitante o responsable y solo si la solicitud se encuentra observada.',
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 3000,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#f39c12'
+    });
+  }
+}
+</script>
+
+<script>
+async function confirmarCambioEstado(estado) {
+  const rol = localStorage.getItem("rol") || "";
+
+  // Bloqueo por roles
+  if (!["Administrador", "Supervisor", "Soporte"].includes(rol)) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Acción no permitida',
+      text: 'Tu rol no tiene permisos para aprobar u observar solicitudes.',
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 3000,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#e74c3c'
+    });
+    return; // 🔒 Evita que continúe ejecutando
+  }
+    // Verifica el estado actual desde la tabla 'traspasos'
+  const { data: solicitudActual, error: errorEstado } = await supabase
+    .from("traspasos")
+    .select("estado")
+    .eq("id", id)
+    .single();
+
+  if (errorEstado) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Error al verificar estado actual',
+      text: errorEstado.message,
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#e74c3c'
+    });
+    return;
+  }
+
+  if (solicitudActual.estado === "Atendido" || solicitudActual.estado === "Anulado") {
+    Swal.fire({
+      icon: 'info',
+      title: `La solicitud tiene estado ${solicitudActual.estado.toLowerCase()}`,
+      text: 'No se puede modificar el estado una vez que ha sido atendido o anulado.',
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#f39c12'
+    });
+    return;
+  }
+  
+  let inputHtml = '';
+  
+  if (estado === 'Atendido') {
+    inputHtml = `
+      <input id="inputContabilizado" class="swal2-input" placeholder="Número de contabilizado (ej. 4954513366)" />
+    `;
+  } else if (estado === 'Observado') {
+    inputHtml = `
+      <textarea id="inputComentario" class="swal2-textarea" placeholder="Motivo de observación..."></textarea>
+    `;
+  }
+
+  Swal.fire({
+    title: `¿Confirmar cambio de estado a "${estado}"?`,
+    html: `
+      <p>Esta acción actualizará la solicitud en el sistema.</p>
+      ${inputHtml}
+    `,
+    icon: 'question',
+    showCancelButton: true,
+    confirmButtonText: 'Sí, confirmar',
+    cancelButtonText: 'Cancelar',
+    background: '#1e2022',
+    color: '#ffffff',
+    iconColor: '#f39c12',
+    confirmButtonColor: '#28a745',
+    cancelButtonColor: '#dc3545',
+   preConfirm: () => {
+  if (estado === 'Atendido') {
+    const val = document.getElementById("inputContabilizado").value.trim();
+    if (!val) {
+      Swal.showValidationMessage("Debe ingresar el número de contabilizado.");
+      return;
+    }
+    return { campo: val };
+  } else if (estado === 'Observado') {
+    const val = document.getElementById("inputComentario").value.trim();
+    if (!val) {
+      Swal.showValidationMessage("Debe ingresar un comentario.");
+      return; // ✅ Este faltaba
+    }
+    return { campo: val };
+  }
+  return { campo: null };
+}
+  }).then((result) => {
+    if (result.isConfirmed) {
+      actualizarEstadoSolicitud(estado, result.value?.campo || null);
+    }
+  });
+}
+</script>
+  
+  <script src="Js/Loader.js"></script>
+  <script src="Js/Sesion.js"></script>
+</body>
+</html>
+
