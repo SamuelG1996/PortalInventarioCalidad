@@ -409,7 +409,7 @@ if (filtro.trim() !== "") {
       .in("centro", centros)
       .in("almacen", almacenes);
 
-    const { data: empresas } = await supabase.from("centros_empresas").select("*");
+    const { data: empresas } = await supabase.from("centros_empresa").select("*");
     const { data: zonas } = await supabase.from("almacenes_zonas").select("*");
     const { data: descripciones } = await supabase
       .from("productos")
