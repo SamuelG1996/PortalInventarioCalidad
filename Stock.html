@@ -386,19 +386,18 @@ if (filtro.trim() !== "") {
 
   reader.readAsBinaryString(file);
 }
-window.procesarExcelSAP = async function(file) {
+
+    window.procesarExcelSAP = async function(file) {
   document.getElementById("loader").style.display = "flex";
   const reader = new FileReader();
 
   reader.onload = async (e) => {
-  console.log("📥 Iniciando procesamiento del archivo Excel SAP...");
     const workbook = XLSX.read(e.target.result, { type: 'binary' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const data = XLSX.utils.sheet_to_json(sheet);
 
-    console.log("📦 Total registros en Excel:", data.length);
-
     let insertados = 0, actualizados = 0, eliminados = 0, errores = 0;
+    const erroresDetallados = [];
 
     const codigos = [...new Set(data.map(f => f["Código"]?.toString().trim()))];
     const centros = [...new Set(data.map(f => f["Centro"]?.toString().trim()))];
@@ -410,21 +409,7 @@ window.procesarExcelSAP = async function(file) {
       .in("centro", centros)
       .in("almacen", almacenes);
 
-    const { data: empresas, error: errorEmpresas } = await supabase.from("centros_empresa").select("*");
-    if (errorEmpresas || !empresas) {
-      console.error("❌ Error al obtener centros_empresa:", errorEmpresas);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error al cargar empresas',
-        text: 'No se pudo obtener la relación centro-empresa desde Supabase.',
-        background: '#1e2022',
-        color: '#ffffff',
-        iconColor: '#f39c12'
-      });
-      document.getElementById("loader").style.display = "none";
-      return;
-    }
-
+    const { data: empresas } = await supabase.from("centros_empresas").select("*");
     const { data: zonas } = await supabase.from("almacenes_zonas").select("*");
     const { data: descripciones } = await supabase
       .from("productos")
@@ -446,9 +431,9 @@ window.procesarExcelSAP = async function(file) {
       const cantidad_sap = parseFloat(fila["Cantidad SAP"]);
 
       if (!codigo || !centro || !almacen || !lote || isNaN(cantidad_sap)) {
-        console.warn("⚠️ Registro inválido omitido:", fila);
-        console.warn("❌ Registro inválido:", fila);
         errores++;
+        erroresDetallados.push(fila);
+        console.warn("Registro inválido:", fila);
         continue;
       }
 
@@ -466,32 +451,29 @@ window.procesarExcelSAP = async function(file) {
       );
 
       if (existe) {
-        console.log("🔄 Actualizando registro existente:", clave);
         updates.push({ ...clave, cantidad_sap, fecha_carga_sap });
-        console.log("🔄 Actualizando:", claveID);
       } else {
-        console.log("➕ Insertando nuevo registro:", clave);
-        inserts.push({ ...clave, cantidad_sap, empresa, zona, descripcion, fecha_carga_sap });
-        console.log("➕ Insertando:", claveID);
+        inserts.push({
+          ...clave,
+          cantidad_sap,
+          empresa,
+          zona,
+          descripcion,
+          fecha_carga_sap
+        });
       }
     }
 
-    // ➕ INSERTS en bloques
+    // 🔄 INSERTS
     const chunkSize = 100;
     for (let i = 0; i < inserts.length; i += chunkSize) {
       const chunk = inserts.slice(i, i + chunkSize);
       const { error } = await supabase.from("stock_contrata").insert(chunk);
-      console.log("📦 Insertando chunk de", chunk.length, "registros");
-      if (error) {
-        console.error("❌ Error insertando:", error);
-        errores += chunk.length;
-      } else {
-        console.log("➕ Insertando nuevo registro:", clave);
-        insertados += chunk.length;
-      }
+      if (error) errores += chunk.length;
+      else insertados += chunk.length;
     }
 
-    // 🔄 UPDATES en bloques
+    // 🔄 UPDATES
     for (let i = 0; i < updates.length; i += chunkSize) {
       const chunk = updates.slice(i, i + chunkSize);
       const promesas = chunk.map(registro =>
@@ -504,22 +486,12 @@ window.procesarExcelSAP = async function(file) {
           .eq("lote", registro.lote)
       );
       const resultados = await Promise.all(promesas);
-      console.log("🔁 Resultados del chunk de updates:", resultados);
-      resultados.forEach(r => {
-        if (r.error) {
-          console.warn("❌ Error al actualizar:", r.error);
-          errores++;
-        } else {
-        console.log("➕ Insertando nuevo registro:", clave);
-          actualizados++;
-        }
-      });
+      resultados.forEach(r => r.error ? errores++ : actualizados++);
     }
 
     // 🧹 ELIMINADOS
     for (const ca of centrosAlmacenes) {
       const [centro, almacen] = ca.split("||");
-
       const clavesCentroAlmacen = Array.from(clavesActualizadas).filter(k => {
         const partes = k.split("||");
         return partes[1] === centro && partes[2] === almacen;
@@ -534,29 +506,30 @@ window.procesarExcelSAP = async function(file) {
         .eq("almacen", almacen)
         .not("clave", "in", clavesCentroAlmacen);
 
-      if (!error) {
-        eliminados += count ?? 0;
-        console.log(`🗑️ Eliminados en ${centro}-${almacen}:`, count);
-      } else {
-        console.log("➕ Insertando nuevo registro:", clave);
-        console.error("❌ Error eliminando:", error);
-        errores++;
-      }
+      if (!error) eliminados += count ?? 0;
+    }
+
+    // 💾 Exportar errores si existen
+    if (erroresDetallados.length > 0) {
+      const ws = XLSX.utils.json_to_sheet(erroresDetallados);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Errores");
+      XLSX.writeFile(wb, "Errores_Carga_SAP.xlsx");
     }
 
     // ✅ ALERTA FINAL
     Swal.fire({
       icon: 'info',
-      title: 'Carga completada',
+      title: 'Carga SAP finalizada',
       html: `
         ✅ <b>${actualizados}</b> actualizados<br>
         ➕ <b>${insertados}</b> insertados<br>
-        ❌ <b>${eliminados}</b> eliminados<br>
-        ⚠️ <b>${errores}</b> errores`,
+        🧹 <b>${eliminados}</b> eliminados<br>
+        ⚠️ <b>${errores}</b> errores ${erroresDetallados.length > 0 ? '<br>📥 Revisa <b>Errores_Carga_SAP.xlsx</b>' : ''}`,
       toast: true,
       position: 'bottom-end',
       showConfirmButton: false,
-      timer: 6000,
+      timer: 7000,
       timerProgressBar: true,
       background: '#1e2022',
       color: '#ffffff',
