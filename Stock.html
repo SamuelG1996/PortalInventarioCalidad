@@ -387,7 +387,7 @@ if (filtro.trim() !== "") {
   reader.readAsBinaryString(file);
 }
 
-    window.procesarExcelSAP = async function(file) {
+ window.procesarExcelSAP = async function(file) {
   document.getElementById("loader").style.display = "flex";
   const reader = new FileReader();
 
@@ -397,7 +397,7 @@ if (filtro.trim() !== "") {
     const data = XLSX.utils.sheet_to_json(sheet);
 
     let insertados = 0, actualizados = 0, eliminados = 0, errores = 0;
-    const erroresDetallados = [];
+    const erroresDetalle = [];
 
     const codigos = [...new Set(data.map(f => f["Código"]?.toString().trim()))];
     const centros = [...new Set(data.map(f => f["Centro"]?.toString().trim()))];
@@ -409,19 +409,21 @@ if (filtro.trim() !== "") {
       .in("centro", centros)
       .in("almacen", almacenes);
 
-    const { data: empresas } = await supabase.from("centros_empresa").select("*");
+    const { data: empresas } = await supabase.from("centros_empresas").select("*");
+    if (!empresas) {
+      Swal.fire({ title: "Error al cargar centros_empresas", icon: "error" });
+      document.getElementById("loader").style.display = "none";
+      return;
+    }
+
     const { data: zonas } = await supabase.from("almacenes_zonas").select("*");
     const { data: descripciones } = await supabase
       .from("productos")
       .select("codigo, descripcion")
       .in("codigo", codigos);
 
-    const fecha_carga_sap = new Date().toLocaleString("sv-SE", { timeZone: "America/Lima" }).replace(" ", "T");
-
-    const inserts = [];
-    const updates = [];
-    const clavesActualizadas = new Set();
-    const centrosAlmacenes = new Set();
+    const fecha_carga_sap = new Date().toISOString();
+    const inserts = [], updates = [], clavesActualizadas = new Set(), centrosAlmacenes = new Set();
 
     for (const fila of data) {
       const codigo = fila["Código"]?.toString().trim();
@@ -432,8 +434,7 @@ if (filtro.trim() !== "") {
 
       if (!codigo || !centro || !almacen || !lote || isNaN(cantidad_sap)) {
         errores++;
-        erroresDetallados.push(fila);
-        console.warn("Registro inválido:", fila);
+        erroresDetalle.push({ ...fila, Motivo: "Campos faltantes o cantidad inválida" });
         continue;
       }
 
@@ -453,27 +454,22 @@ if (filtro.trim() !== "") {
       if (existe) {
         updates.push({ ...clave, cantidad_sap, fecha_carga_sap });
       } else {
-        inserts.push({
-          ...clave,
-          cantidad_sap,
-          empresa,
-          zona,
-          descripcion,
-          fecha_carga_sap
-        });
+        inserts.push({ ...clave, cantidad_sap, empresa, zona, descripcion, fecha_carga_sap });
       }
     }
 
-    // 🔄 INSERTS
+    // INSERTS
     const chunkSize = 100;
     for (let i = 0; i < inserts.length; i += chunkSize) {
       const chunk = inserts.slice(i, i + chunkSize);
       const { error } = await supabase.from("stock_contrata").insert(chunk);
-      if (error) errores += chunk.length;
-      else insertados += chunk.length;
+      if (error) {
+        errores += chunk.length;
+        erroresDetalle.push(...chunk.map(f => ({ ...f, Motivo: "Error en insert" })));
+      } else insertados += chunk.length;
     }
 
-    // 🔄 UPDATES
+    // UPDATES
     for (let i = 0; i < updates.length; i += chunkSize) {
       const chunk = updates.slice(i, i + chunkSize);
       const promesas = chunk.map(registro =>
@@ -486,10 +482,15 @@ if (filtro.trim() !== "") {
           .eq("lote", registro.lote)
       );
       const resultados = await Promise.all(promesas);
-      resultados.forEach(r => r.error ? errores++ : actualizados++);
+      resultados.forEach((r, idx) => {
+        if (r.error) {
+          errores++;
+          erroresDetalle.push({ ...chunk[idx], Motivo: "Error en update" });
+        } else actualizados++;
+      });
     }
 
-    // 🧹 ELIMINADOS
+    // ELIMINADOS
     for (const ca of centrosAlmacenes) {
       const [centro, almacen] = ca.split("||");
       const clavesCentroAlmacen = Array.from(clavesActualizadas).filter(k => {
@@ -509,9 +510,9 @@ if (filtro.trim() !== "") {
       if (!error) eliminados += count ?? 0;
     }
 
-    // 💾 Exportar errores si existen
-    if (erroresDetallados.length > 0) {
-      const ws = XLSX.utils.json_to_sheet(erroresDetallados);
+    // ⬇️ Exportar errores si existen
+    if (erroresDetalle.length > 0) {
+      const ws = XLSX.utils.json_to_sheet(erroresDetalle);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Errores");
       XLSX.writeFile(wb, "Errores_Carga_SAP.xlsx");
@@ -520,16 +521,16 @@ if (filtro.trim() !== "") {
     // ✅ ALERTA FINAL
     Swal.fire({
       icon: 'info',
-      title: 'Carga SAP finalizada',
+      title: 'Carga completada',
       html: `
         ✅ <b>${actualizados}</b> actualizados<br>
         ➕ <b>${insertados}</b> insertados<br>
-        🧹 <b>${eliminados}</b> eliminados<br>
-        ⚠️ <b>${errores}</b> errores ${erroresDetallados.length > 0 ? '<br>📥 Revisa <b>Errores_Carga_SAP.xlsx</b>' : ''}`,
+        ❌ <b>${eliminados}</b> eliminados<br>
+        ⚠️ <b>${errores}</b> errores`,
       toast: true,
       position: 'bottom-end',
       showConfirmButton: false,
-      timer: 7000,
+      timer: 5000,
       timerProgressBar: true,
       background: '#1e2022',
       color: '#ffffff',
@@ -541,10 +542,9 @@ if (filtro.trim() !== "") {
   };
 
   reader.readAsBinaryString(file);
-};
+};   
 
 
-    
   function renderizarControlesPaginacion() {
   const contenedor = document.getElementById("paginacion");
   contenedor.innerHTML = "";
