@@ -408,7 +408,20 @@ window.procesarExcelSAP = async function(file) {
       .in("centro", centros)
       .in("almacen", almacenes);
 
-    const { data: empresas } = await supabase.from("centros_empresas").select("*");
+   const { data: empresas, error: errorEmpresas } = await supabase.from("centros_empresas").select("*");
+    if (errorEmpresas || !empresas) {
+  console.error("Error al obtener centros_empresas:", errorEmpresas);
+  Swal.fire({
+    icon: 'error',
+    title: 'Error al cargar empresas',
+    text: 'No se pudo obtener la relación centro-empresa desde Supabase.',
+    background: '#1e2022',
+    color: '#ffffff',
+    iconColor: '#f39c12'
+  });
+  document.getElementById("loader").style.display = "none";
+  return;
+}
     const { data: zonas } = await supabase.from("almacenes_zonas").select("*");
     const { data: descripciones } = await supabase
       .from("productos")
