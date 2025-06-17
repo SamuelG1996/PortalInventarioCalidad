@@ -391,6 +391,7 @@ window.procesarExcelSAP = async function(file) {
   const reader = new FileReader();
 
   reader.onload = async (e) => {
+  console.log("📥 Iniciando procesamiento del archivo Excel SAP...");
     const workbook = XLSX.read(e.target.result, { type: 'binary' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const data = XLSX.utils.sheet_to_json(sheet);
@@ -445,6 +446,7 @@ window.procesarExcelSAP = async function(file) {
       const cantidad_sap = parseFloat(fila["Cantidad SAP"]);
 
       if (!codigo || !centro || !almacen || !lote || isNaN(cantidad_sap)) {
+        console.warn("⚠️ Registro inválido omitido:", fila);
         console.warn("❌ Registro inválido:", fila);
         errores++;
         continue;
@@ -464,9 +466,11 @@ window.procesarExcelSAP = async function(file) {
       );
 
       if (existe) {
+        console.log("🔄 Actualizando registro existente:", clave);
         updates.push({ ...clave, cantidad_sap, fecha_carga_sap });
         console.log("🔄 Actualizando:", claveID);
       } else {
+        console.log("➕ Insertando nuevo registro:", clave);
         inserts.push({ ...clave, cantidad_sap, empresa, zona, descripcion, fecha_carga_sap });
         console.log("➕ Insertando:", claveID);
       }
@@ -477,10 +481,12 @@ window.procesarExcelSAP = async function(file) {
     for (let i = 0; i < inserts.length; i += chunkSize) {
       const chunk = inserts.slice(i, i + chunkSize);
       const { error } = await supabase.from("stock_contrata").insert(chunk);
+      console.log("📦 Insertando chunk de", chunk.length, "registros");
       if (error) {
         console.error("❌ Error insertando:", error);
         errores += chunk.length;
       } else {
+        console.log("➕ Insertando nuevo registro:", clave);
         insertados += chunk.length;
       }
     }
@@ -498,11 +504,13 @@ window.procesarExcelSAP = async function(file) {
           .eq("lote", registro.lote)
       );
       const resultados = await Promise.all(promesas);
+      console.log("🔁 Resultados del chunk de updates:", resultados);
       resultados.forEach(r => {
         if (r.error) {
           console.warn("❌ Error al actualizar:", r.error);
           errores++;
         } else {
+        console.log("➕ Insertando nuevo registro:", clave);
           actualizados++;
         }
       });
@@ -530,6 +538,7 @@ window.procesarExcelSAP = async function(file) {
         eliminados += count ?? 0;
         console.log(`🗑️ Eliminados en ${centro}-${almacen}:`, count);
       } else {
+        console.log("➕ Insertando nuevo registro:", clave);
         console.error("❌ Error eliminando:", error);
         errores++;
       }
@@ -554,18 +563,13 @@ window.procesarExcelSAP = async function(file) {
       iconColor: '#f39c12'
     });
 
-    console.log("📊 Resultado del procesamiento SAP:");
-console.log("✅ Actualizados:", actualizados);
-console.log("➕ Insertados:", insertados);
-console.log("❌ Eliminados:", eliminados);
-console.log("⚠️ Errores:", errores);
-
     await window.cargarStockContrata();
     document.getElementById("loader").style.display = "none";
   };
 
   reader.readAsBinaryString(file);
 };
+
 
     
   function renderizarControlesPaginacion() {
