@@ -546,10 +546,7 @@ window.procesarExcelSAP = async function(file) {
       .in("centro", centros)
       .in("almacen", almacenes);
 
-    const clavesExistentes = new Set(
-      stockExistente.map(r => `${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`)
-    );
-
+  
     const fecha_carga_sap = new Date().toISOString();
     const updates = [];
 
@@ -568,12 +565,18 @@ window.procesarExcelSAP = async function(file) {
 
       const claveID = `${codigo}||${centro}||${almacen}||${lote}`;
 
-      if (clavesExistentes.has(claveID)) {
-        updates.push({ codigo, centro, almacen, lote, cantidad_sap, fecha_carga_sap });
-      } else {
-        errores++;
-        erroresDetalles.push({ ...fila, Motivo: "Registro no existe en base de datos" });
-      }
+      const existe = stockExistente.some(r =>
+  r.codigo?.trim().toUpperCase() === codigo &&
+  r.centro?.trim().toUpperCase() === centro &&
+  r.almacen?.trim().toUpperCase() === almacen &&
+  r.lote?.trim().toUpperCase() === lote
+);
+
+if (existe) {
+  updates.push({ codigo, centro, almacen, lote, cantidad_sap, fecha_carga_sap });
+} else {
+  inserts.push({ codigo, centro, almacen, lote, cantidad_sap, empresa, zona, descripcion, fecha_carga_sap });
+}
     }
 
     const resultado = await ejecutarActualizacionSAPConRPC(updates);
