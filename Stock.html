@@ -488,8 +488,9 @@ async function ejecutarActualizacionSAPConRPC(registros) {
     const bloque = registros.slice(i, i + chunkSize);
 
     const { error } = await supabase.rpc("actualizar_sap_masivo", {
-      registros: bloque
-    });
+  registros: JSON.parse(JSON.stringify(bloque)) // fuerza conversión segura a jsonb
+});
+
 
     if (error) {
       console.error(`❌ Error en bloque RPC [${i}–${i + chunkSize}]:`, error.message);
