@@ -599,7 +599,7 @@ const resultado = await ejecutarActualizacionSAPConRPC(updates);
 errores += resultado.errores;
 erroresDetalles.push(...resultado.erroresDetalles);
 
-    }
+   };
 
     if (erroresDetalles.length > 0) {
       const worksheet = XLSX.utils.json_to_sheet(erroresDetalles);
