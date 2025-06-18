@@ -533,7 +533,7 @@ window.procesarExcelSAP = async function(file) {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const data = XLSX.utils.sheet_to_json(sheet);
 
-    let insertados = 0, actualizados = 0, errores = 0;
+    let actualizados = 0, errores = 0;
     const erroresDetalles = [];
 
     const codigos = [...new Set(data.map(f => f["Código"]?.toString().trim()))];
@@ -550,12 +550,8 @@ window.procesarExcelSAP = async function(file) {
       stockExistente.map(r => `${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`)
     );
 
-    const { data: empresas } = await supabase.from("centros_empresa").select("*");
-    const { data: zonas } = await supabase.from("almacenes_zonas").select("*");
-    const { data: descripciones } = await supabase.from("productos").select("codigo, descripcion").in("codigo", codigos);
-
     const fecha_carga_sap = new Date().toISOString();
-    const inserts = [], updates = [];
+    const updates = [];
 
     for (const fila of data) {
       const codigo = fila["Código"]?.toString().trim();
@@ -571,34 +567,19 @@ window.procesarExcelSAP = async function(file) {
       }
 
       const claveID = `${codigo}||${centro}||${almacen}||${lote}`;
-      const empresa = empresas.find(e => e.centro === centro)?.empresa || "SIN EMPRESA";
-      const zona = zonas.find(z => z.almacen === almacen)?.zona || "SIN ZONA";
-      const descripcion = descripciones.find(d => d.codigo === codigo)?.descripcion || "SIN DESCRIPCIÓN";
 
       if (clavesExistentes.has(claveID)) {
         updates.push({ codigo, centro, almacen, lote, cantidad_sap, fecha_carga_sap });
       } else {
-        inserts.push({ codigo, centro, almacen, lote, cantidad_sap, empresa, zona, descripcion, fecha_carga_sap });
+        errores++;
+        erroresDetalles.push({ ...fila, Motivo: "Registro no existe en base de datos" });
       }
     }
 
-    // ✅ Insertar en bloques secuenciales
-    for (let i = 0; i < inserts.length; i += 100) {
-      const chunk = inserts.slice(i, i + 100);
-      const { error } = await supabase.from("stock_contrata").insert(chunk);
-      if (error) {
-        errores += chunk.length;
-        erroresDetalles.push(...chunk.map(r => ({ ...r, Motivo: "Error en insert" })));
-      } else {
-        insertados += chunk.length;
-      }
-    }
-
-    // ✅ Actualizar en bloques usando RPC
-const resultado = await ejecutarActualizacionSAPConRPC(updates);
-errores += resultado.errores;
-erroresDetalles.push(...resultado.erroresDetalles);
-
+    const resultado = await ejecutarActualizacionSAPConRPC(updates);
+    errores += resultado.errores;
+    erroresDetalles.push(...resultado.erroresDetalles);
+    actualizados += updates.length - resultado.errores;
 
     if (erroresDetalles.length > 0) {
       const worksheet = XLSX.utils.json_to_sheet(erroresDetalles);
@@ -609,8 +590,8 @@ erroresDetalles.push(...resultado.erroresDetalles);
 
     Swal.fire({
       icon: 'info',
-      title: 'Carga completada',
-      html: `✅ <b>${actualizados}</b> actualizados<br>➕ <b>${insertados}</b> insertados<br>⚠️ <b>${errores}</b> errores`,
+      title: 'Actualización SAP finalizada',
+      html: `✅ <b>${actualizados}</b> actualizados<br>⚠️ <b>${errores}</b> errores`,
       background: '#1e2022', color: '#ffffff', iconColor: '#f39c12',
       toast: true, position: 'bottom-end', timer: 5000, timerProgressBar: true, showConfirmButton: false
     });
@@ -621,7 +602,6 @@ erroresDetalles.push(...resultado.erroresDetalles);
 
   reader.readAsBinaryString(file);
 };
-
   function renderizarControlesPaginacion() {
   const contenedor = document.getElementById("paginacion");
   contenedor.innerHTML = "";
