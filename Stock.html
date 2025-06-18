@@ -480,7 +480,7 @@ document.getElementById("loader").style.display = "none";
   reader.readAsBinaryString(file);
 }
 
- window.procesarExcelSAP = async function(file) {
+window.procesarExcelSAP = async function(file) {
   document.getElementById("loader").style.display = "flex";
   const reader = new FileReader();
 
@@ -538,29 +538,36 @@ document.getElementById("loader").style.display = "none";
       }
     }
 
+    // ✅ Insertar en bloques secuenciales
     for (let i = 0; i < inserts.length; i += 100) {
       const chunk = inserts.slice(i, i + 100);
       const { error } = await supabase.from("stock_contrata").insert(chunk);
       if (error) {
         errores += chunk.length;
         erroresDetalles.push(...chunk.map(r => ({ ...r, Motivo: "Error en insert" })));
-      } else insertados += chunk.length;
+      } else {
+        insertados += chunk.length;
+      }
     }
 
+    // ✅ Actualizar en bloques secuenciales (sin Promise.all)
     for (let i = 0; i < updates.length; i += 100) {
       const chunk = updates.slice(i, i + 100);
-      const promesas = chunk.map(r =>
-        supabase.from("stock_contrata")
-          .update({ cantidad_sap: r.cantidad_sap, fecha_carga_sap: r.fecha_carga_sap })
-          .eq("codigo", r.codigo).eq("centro", r.centro).eq("almacen", r.almacen).eq("lote", r.lote)
-      );
-      const resultados = await Promise.all(promesas);
-      resultados.forEach((r, idx) => {
-        if (r.error) {
+      for (const reg of chunk) {
+        const { error } = await supabase.from("stock_contrata")
+          .update({ cantidad_sap: reg.cantidad_sap, fecha_carga_sap: reg.fecha_carga_sap })
+          .eq("codigo", reg.codigo)
+          .eq("centro", reg.centro)
+          .eq("almacen", reg.almacen)
+          .eq("lote", reg.lote);
+
+        if (error) {
           errores++;
-          erroresDetalles.push({ ...chunk[idx], Motivo: "Error en update" });
-        } else actualizados++;
-      });
+          erroresDetalles.push({ ...reg, Motivo: "Error en update" });
+        } else {
+          actualizados++;
+        }
+      }
     }
 
     if (erroresDetalles.length > 0) {
