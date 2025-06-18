@@ -576,7 +576,7 @@ window.procesarExcelSAP = async function(file) {
 if (existe) {
   updates.push({ codigo, centro, almacen, lote, cantidad_sap, fecha_carga_sap });
 } else {
-  inserts.push({ codigo, centro, almacen, lote, cantidad_sap, empresa, zona, descripcion, fecha_carga_sap });
+  continue; // ignora los que no existen en Supabase
 }
     }
 
