@@ -483,22 +483,45 @@ document.getElementById("loader").style.display = "none";
 async function ejecutarActualizacionSAPConRPC(registros) {
   const chunkSize = 1000;
   let errores = 0;
+  const erroresDetalles = [];
 
   for (let i = 0; i < registros.length; i += chunkSize) {
     const bloque = registros.slice(i, i + chunkSize);
 
     const { error } = await supabase.rpc("actualizar_sap_masivo", {
-  registros: JSON.parse(JSON.stringify(bloque)) // fuerza conversión segura a jsonb
-});
-
+      registros: JSON.parse(JSON.stringify(bloque))
+    });
 
     if (error) {
-      console.error(`❌ Error en bloque RPC [${i}–${i + chunkSize}]:`, error.message);
-      errores += bloque.length;
+      console.warn(`⚠️ Bloque fallido [${i}–${i + chunkSize}]: ${error.message}`);
+
+      // Si el bloque completo falla, intentamos de 100 en 100
+      for (let j = 0; j < bloque.length; j += 100) {
+        const subBloque = bloque.slice(j, j + 100);
+        const { error: subError } = await supabase.rpc("actualizar_sap_masivo", {
+          registros: JSON.parse(JSON.stringify(subBloque))
+        });
+
+        if (subError) {
+          console.warn(`❌ Subbloque fallido [${i + j}–${i + j + 100}]: ${subError.message}`);
+
+          // Intentamos registro por registro
+          for (const reg of subBloque) {
+            const { error: regError } = await supabase.rpc("actualizar_sap_masivo", {
+              registros: JSON.parse(JSON.stringify([reg]))
+            });
+            if (regError) {
+              errores++;
+              erroresDetalles.push({ ...reg, Motivo: regError.message });
+            }
+          }
+
+        }
+      }
     }
   }
 
-  return errores === 0;
+  return { errores, erroresDetalles };
 }
     
 window.procesarExcelSAP = async function(file) {
@@ -572,16 +595,10 @@ window.procesarExcelSAP = async function(file) {
     }
 
     // ✅ Actualizar en bloques usando RPC
-    for (let i = 0; i < updates.length; i += 1000) {
-      const chunk = updates.slice(i, i + 1000);
-      const result = await supabase.rpc("actualizar_sap_masivo", { registros: chunk });
+const resultado = await ejecutarActualizacionSAPConRPC(updates);
+errores += resultado.errores;
+erroresDetalles.push(...resultado.erroresDetalles);
 
-      if (result.error) {
-        errores += chunk.length;
-        erroresDetalles.push(...chunk.map(r => ({ ...r, Motivo: result.error.message || "Error en RPC" })));
-      } else {
-        actualizados += chunk.length;
-      }
     }
 
     if (erroresDetalles.length > 0) {
