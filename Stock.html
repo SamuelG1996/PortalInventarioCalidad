@@ -481,24 +481,22 @@ document.getElementById("loader").style.display = "none";
 }
 
 async function ejecutarActualizacionSAPConRPC(registros) {
-  const { error } = await supabase.rpc("actualizar_sap_masivo", {
-    registros
-  });
+  const chunkSize = 500; // o 1000 como máximo
+  let errores = 0;
 
-  if (error) {
-    console.error("Error al ejecutar función RPC:", error);
-    Swal.fire({
-      icon: 'error',
-      title: 'Error en RPC',
-      text: error.message,
-      background: '#1e2022',
-      color: '#ffffff',
-      iconColor: '#f39c12'
+  for (let i = 0; i < registros.length; i += chunkSize) {
+    const bloque = registros.slice(i, i + chunkSize);
+    const { error } = await supabase.rpc("actualizar_sap_masivo", {
+      registros: bloque
     });
-    return false;
+
+    if (error) {
+      console.error("Error RPC en bloque:", error);
+      errores += bloque.length;
+    }
   }
 
-  return true;
+  return errores === 0;
 }
 
 window.procesarExcelSAP = async function(file) {
