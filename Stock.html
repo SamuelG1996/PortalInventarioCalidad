@@ -481,24 +481,25 @@ document.getElementById("loader").style.display = "none";
 }
 
 async function ejecutarActualizacionSAPConRPC(registros) {
-  const chunkSize = 500; // o 1000 como máximo
+  const chunkSize = 1000;
   let errores = 0;
 
   for (let i = 0; i < registros.length; i += chunkSize) {
     const bloque = registros.slice(i, i + chunkSize);
+
     const { error } = await supabase.rpc("actualizar_sap_masivo", {
       registros: bloque
     });
 
     if (error) {
-      console.error("Error RPC en bloque:", error);
+      console.error(`❌ Error en bloque RPC [${i}–${i + chunkSize}]:`, error.message);
       errores += bloque.length;
     }
   }
 
   return errores === 0;
 }
-
+    
 window.procesarExcelSAP = async function(file) {
   document.getElementById("loader").style.display = "flex";
   const reader = new FileReader();
