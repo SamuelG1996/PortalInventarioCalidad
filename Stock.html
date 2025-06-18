@@ -583,7 +583,21 @@ if (existe) {
     const resultado = await ejecutarActualizacionSAPConRPC(updates);
     errores += resultado.errores;
     erroresDetalles.push(...resultado.erroresDetalles);
-    actualizados += updates.length - resultado.errores;
+    const actualizadosEstimados = updates.length - resultado.errores;
+actualizados += actualizadosEstimados;
+
+// Detectar los registros no actualizados
+const clavesActualizadas = new Set(updates.map(r => `${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`));
+const clavesQueFallaron = new Set(resultado.erroresDetalles.map(r => `${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`));
+const clavesNoActualizadas = updates.filter(r => !clavesQueFallaron.has(`${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`))
+                                    .slice(actualizadosEstimados); // probables fallos silenciosos
+
+if (clavesNoActualizadas.length > 0) {
+  const ws = XLSX.utils.json_to_sheet(clavesNoActualizadas);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "No_Actualizados");
+  XLSX.writeFile(wb, "Errores_No_Actualizados_Supabase.xlsx");
+}
 
     if (erroresDetalles.length > 0) {
       const worksheet = XLSX.utils.json_to_sheet(erroresDetalles);
