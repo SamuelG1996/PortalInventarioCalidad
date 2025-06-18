@@ -585,8 +585,8 @@ window.procesarExcelSAP = async function(file) {
     ));
 
     const noActualizados = updates.filter(r =>
-      !clavesFallidas.has(`${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`)
-    );
+  clavesFallidas.has(`${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`)
+);
 
     if (noActualizados.length > 0) {
       const ws = XLSX.utils.json_to_sheet(noActualizados);
