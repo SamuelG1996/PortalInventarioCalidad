@@ -549,6 +549,8 @@ window.procesarExcelSAP = async function(file) {
 
     const fecha_carga_sap = new Date().toISOString();
 
+    const updatesClaves = new Set();
+
     for (const fila of data) {
       const codigo = fila["Código"]?.toString().trim();
       const centro = fila["Centro"]?.toString().trim();
@@ -571,6 +573,7 @@ window.procesarExcelSAP = async function(file) {
 
       if (existe) {
         updates.push({ codigo, centro, almacen, lote, cantidad_sap, fecha_carga_sap });
+        updatesClaves.add(`${codigo}||${centro}||${almacen}||${lote}`);
       }
     }
 
@@ -579,28 +582,31 @@ window.procesarExcelSAP = async function(file) {
     erroresDetalles.push(...resultado.erroresDetalles);
     actualizados = updates.length - resultado.errores;
 
-    // 🚨 DETECTAR LOS QUE FALLARON Y EXPORTAR
-    const clavesFallidas = new Set(resultado.erroresDetalles.map(r =>
+    // 🟠 1. Descarga errores explícitos (como ya lo hacías)
+    if (erroresDetalles.length > 0) {
+      const hoja = XLSX.utils.json_to_sheet(erroresDetalles);
+      const libro = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(libro, hoja, "Errores");
+      XLSX.writeFile(libro, "Errores_Carga_SAP.xlsx");
+    }
+
+    // 🟠 2. Descarga los no actualizados (silenciosos)
+    const clavesQueFallaron = new Set(resultado.erroresDetalles.map(r =>
       `${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`
     ));
 
-    const noActualizados = updates.filter(r =>
-      clavesFallidas.has(`${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`)
+    const clavesQueSeIntentaron = updates.map(r => `${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`);
+    const clavesQueNoSeActualizaron = clavesQueSeIntentaron.filter(k => !clavesQueFallaron.has(k));
+
+    const registrosNoActualizados = updates.filter(r =>
+      clavesQueNoSeActualizaron.includes(`${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`)
     );
 
-    if (noActualizados.length > 0) {
-      const ws = XLSX.utils.json_to_sheet(noActualizados);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "No_Actualizados");
-      XLSX.writeFile(wb, "Errores_No_Actualizados_Supabase.xlsx");
-    }
-
-    // 🟠 Exportar detalles de error si los hay
-    if (erroresDetalles.length > 0) {
-      const worksheet = XLSX.utils.json_to_sheet(erroresDetalles);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, worksheet, "Errores");
-      XLSX.writeFile(wb, "Errores_Carga_SAP.xlsx");
+    if (registrosNoActualizados.length > 0) {
+      const hoja = XLSX.utils.json_to_sheet(registrosNoActualizados);
+      const libro = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(libro, hoja, "No_Actualizados");
+      XLSX.writeFile(libro, "Errores_No_Actualizados_Supabase.xlsx");
     }
 
     Swal.fire({
