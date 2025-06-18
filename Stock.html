@@ -535,6 +535,7 @@ window.procesarExcelSAP = async function(file) {
 
     let actualizados = 0, errores = 0;
     const erroresDetalles = [];
+    const updates = [];
 
     const codigos = [...new Set(data.map(f => f["Código"]?.toString().trim()))];
     const centros = [...new Set(data.map(f => f["Centro"]?.toString().trim()))];
@@ -547,7 +548,6 @@ window.procesarExcelSAP = async function(file) {
       .in("almacen", almacenes);
 
     const fecha_carga_sap = new Date().toISOString();
-    const updates = [];
 
     for (const fila of data) {
       const codigo = fila["Código"]?.toString().trim();
@@ -577,16 +577,16 @@ window.procesarExcelSAP = async function(file) {
     const resultado = await ejecutarActualizacionSAPConRPC(updates);
     errores += resultado.errores;
     erroresDetalles.push(...resultado.erroresDetalles);
-    actualizados += updates.length - resultado.errores;
+    actualizados = updates.length - resultado.errores;
 
-    // 🔍 Detección de NO ACTUALIZADOS silenciosos
+    // 🚨 DETECTAR LOS QUE FALLARON Y EXPORTAR
     const clavesFallidas = new Set(resultado.erroresDetalles.map(r =>
       `${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`
     ));
 
     const noActualizados = updates.filter(r =>
-  clavesFallidas.has(`${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`)
-);
+      clavesFallidas.has(`${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`)
+    );
 
     if (noActualizados.length > 0) {
       const ws = XLSX.utils.json_to_sheet(noActualizados);
@@ -595,6 +595,7 @@ window.procesarExcelSAP = async function(file) {
       XLSX.writeFile(wb, "Errores_No_Actualizados_Supabase.xlsx");
     }
 
+    // 🟠 Exportar detalles de error si los hay
     if (erroresDetalles.length > 0) {
       const worksheet = XLSX.utils.json_to_sheet(erroresDetalles);
       const wb = XLSX.utils.book_new();
@@ -606,8 +607,14 @@ window.procesarExcelSAP = async function(file) {
       icon: 'info',
       title: 'Actualización SAP finalizada',
       html: `✅ <b>${actualizados}</b> actualizados<br>⚠️ <b>${errores}</b> errores`,
-      background: '#1e2022', color: '#ffffff', iconColor: '#f39c12',
-      toast: true, position: 'bottom-end', timer: 5000, timerProgressBar: true, showConfirmButton: false
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#f39c12',
+      toast: true,
+      position: 'bottom-end',
+      timer: 5000,
+      timerProgressBar: true,
+      showConfirmButton: false
     });
 
     await window.cargarStockContrata();
