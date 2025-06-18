@@ -570,28 +570,18 @@ window.procesarExcelSAP = async function(file) {
       }
     }
 
-onst updatesValidos = updates.filter(r => r.cantidad_sap != null && r.cantidad_sap !== 0);
+    // ✅ Actualizar en bloques usando RPC
+    for (let i = 0; i < updates.length; i += 1000) {
+      const chunk = updates.slice(i, i + 1000);
+      const result = await supabase.rpc("actualizar_sap_masivo", { registros: chunk });
 
-let ok = true;
-
-for (let i = 0; i < updatesValidos.length; i += 1000) {
-  const chunk = updatesValidos.slice(i, i + 1000);
-  const resultado = await ejecutarActualizacionSAPConRPC(chunk);
-  if (!resultado) {
-    errores += chunk.length;
-    erroresDetalles.push(...chunk.map(r => ({ ...r, Motivo: "Error en bloque RPC" })));
-    ok = false;
-  } else {
-    actualizados += chunk.length;
-  }
-}    
-    if (!ok) {
-      errores += updates.length;
-      erroresDetalles.push(...updates.map(r => ({ ...r, Motivo: "Error en RPC update" })));
-    } else {
-      actualizados += updates.length;
+      if (result.error) {
+        errores += chunk.length;
+        erroresDetalles.push(...chunk.map(r => ({ ...r, Motivo: result.error.message || "Error en RPC" })));
+      } else {
+        actualizados += chunk.length;
+      }
     }
-
 
     if (erroresDetalles.length > 0) {
       const worksheet = XLSX.utils.json_to_sheet(erroresDetalles);
