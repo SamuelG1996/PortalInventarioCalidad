@@ -533,77 +533,80 @@ window.procesarExcelSAP = async function(file) {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const data = XLSX.utils.sheet_to_json(sheet);
 
-    let actualizados = 0, errores = 0;
-    const erroresDetalles = [];
+    const fecha_carga_sap = new Date().toISOString();
     const updates = [];
+    const erroresDetalles = [];
 
     const codigos = [...new Set(data.map(f => f["Código"]?.toString().trim()))];
     const centros = [...new Set(data.map(f => f["Centro"]?.toString().trim()))];
     const almacenes = [...new Set(data.map(f => f["Almacén"]?.toString().trim()))];
 
-    const { data: stockExistente } = await supabase
+    const { data: existentes, error } = await supabase
       .from("stock_contrata")
       .select("codigo, centro, almacen, lote")
       .in("centro", centros)
       .in("almacen", almacenes);
 
-    const fecha_carga_sap = new Date().toISOString();
-
-    const updatesClaves = new Set();
+    if (error || !existentes) {
+      console.error("Error al obtener datos existentes:", error);
+      Swal.fire("Error", "No se pudo validar registros existentes", "error");
+      document.getElementById("loader").style.display = "none";
+      return;
+    }
 
     for (const fila of data) {
-      const codigo = fila["Código"]?.toString().trim();
-      const centro = fila["Centro"]?.toString().trim();
-      const almacen = fila["Almacén"]?.toString().trim();
-      const lote = fila["Lote"]?.toString().trim();
+      const codigo = fila["Código"]?.trim();
+      const centro = fila["Centro"]?.trim();
+      const almacen = fila["Almacén"]?.trim();
+      const lote = fila["Lote"]?.trim();
       const cantidad_sap = parseFloat(fila["Cantidad SAP"]);
 
       if (!codigo || !centro || !almacen || !lote || isNaN(cantidad_sap)) {
-        errores++;
         erroresDetalles.push({ ...fila, Motivo: "Campos inválidos o vacíos" });
         continue;
       }
 
-      const existe = stockExistente.some(r =>
-        r.codigo?.trim().toUpperCase() === codigo &&
-        r.centro?.trim().toUpperCase() === centro &&
-        r.almacen?.trim().toUpperCase() === almacen &&
-        r.lote?.trim().toUpperCase() === lote
+      const existe = existentes.some(r =>
+        r.codigo === codigo && r.centro === centro && r.almacen === almacen && r.lote === lote
       );
 
       if (existe) {
         updates.push({ codigo, centro, almacen, lote, cantidad_sap, fecha_carga_sap });
-        updatesClaves.add(`${codigo}||${centro}||${almacen}||${lote}`);
       }
     }
 
-    const resultado = await ejecutarActualizacionSAPConRPC(updates);
-    errores += resultado.errores;
-    erroresDetalles.push(...resultado.erroresDetalles);
-    actualizados = updates.length - resultado.errores;
+    const noActualizados = [];
 
-    // 🟠 1. Descarga errores explícitos (como ya lo hacías)
-    if (erroresDetalles.length > 0) {
-      const hoja = XLSX.utils.json_to_sheet(erroresDetalles);
-      const libro = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(libro, hoja, "Errores");
-      XLSX.writeFile(libro, "Errores_Carga_SAP.xlsx");
+    for (let i = 0; i < updates.length; i += 1000) {
+      const bloque = updates.slice(i, i + 1000);
+      const { error } = await supabase.rpc("actualizar_sap_masivo", { registros: bloque });
+
+      if (error) {
+        console.warn("Bloque completo falló:", error.message);
+
+        // Reintenta por bloques de 100
+        for (let j = 0; j < bloque.length; j += 100) {
+          const subBloque = bloque.slice(j, j + 100);
+          const { error: error100 } = await supabase.rpc("actualizar_sap_masivo", { registros: subBloque });
+
+          if (error100) {
+            // Reintenta por fila
+            for (const fila of subBloque) {
+              const { error: err } = await supabase.rpc("actualizar_sap_masivo", { registros: [fila] });
+              if (err) {
+                noActualizados.push({ ...fila, Motivo: err.message });
+              }
+            }
+          }
+        }
+      }
     }
 
-    // 🟠 2. Descarga los no actualizados (silenciosos)
-    const clavesQueFallaron = new Set(resultado.erroresDetalles.map(r =>
-      `${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`
-    ));
+    const totalActualizados = updates.length - noActualizados.length;
 
-    const clavesQueSeIntentaron = updates.map(r => `${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`);
-    const clavesQueNoSeActualizaron = clavesQueSeIntentaron.filter(k => !clavesQueFallaron.has(k));
-
-    const registrosNoActualizados = updates.filter(r =>
-      clavesQueNoSeActualizaron.includes(`${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`)
-    );
-
-    if (registrosNoActualizados.length > 0) {
-      const hoja = XLSX.utils.json_to_sheet(registrosNoActualizados);
+    // Exporta errores (los no actualizados)
+    if (noActualizados.length > 0) {
+      const hoja = XLSX.utils.json_to_sheet(noActualizados);
       const libro = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(libro, hoja, "No_Actualizados");
       XLSX.writeFile(libro, "Errores_No_Actualizados_Supabase.xlsx");
@@ -611,16 +614,16 @@ window.procesarExcelSAP = async function(file) {
 
     Swal.fire({
       icon: 'info',
-      title: 'Actualización SAP finalizada',
-      html: `✅ <b>${actualizados}</b> actualizados<br>⚠️ <b>${errores}</b> errores`,
-      background: '#1e2022',
-      color: '#ffffff',
-      iconColor: '#f39c12',
+      title: 'Actualización SAP completada',
+      html: `✅ <b>${totalActualizados}</b> actualizados<br>⚠️ <b>${noActualizados.length}</b> no actualizados`,
       toast: true,
       position: 'bottom-end',
       timer: 5000,
       timerProgressBar: true,
-      showConfirmButton: false
+      showConfirmButton: false,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#f39c12'
     });
 
     await window.cargarStockContrata();
