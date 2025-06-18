@@ -555,10 +555,10 @@ window.procesarExcelSAP = async function(file) {
     }
 
     for (const fila of data) {
-      const codigo = fila["Código"]?.trim();
-      const centro = fila["Centro"]?.trim();
-      const almacen = fila["Almacén"]?.trim();
-      const lote = fila["Lote"]?.trim();
+      const codigo = fila["Código"]?.toString().trim();
+      const centro = fila["Centro"]?.toString().trim();
+      const almacen = fila["Almacén"]?.toString().trim();
+      const lote = fila["Lote"]?.toString().trim();
       const cantidad_sap = parseFloat(fila["Cantidad SAP"]);
 
       if (!codigo || !centro || !almacen || !lote || isNaN(cantidad_sap)) {
