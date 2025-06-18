@@ -535,7 +535,6 @@ window.procesarExcelSAP = async function(file) {
 
     let actualizados = 0, errores = 0;
     const erroresDetalles = [];
-    const inserts = [];
 
     const codigos = [...new Set(data.map(f => f["Código"]?.toString().trim()))];
     const centros = [...new Set(data.map(f => f["Centro"]?.toString().trim()))];
@@ -547,7 +546,6 @@ window.procesarExcelSAP = async function(file) {
       .in("centro", centros)
       .in("almacen", almacenes);
 
-  
     const fecha_carga_sap = new Date().toISOString();
     const updates = [];
 
@@ -564,40 +562,38 @@ window.procesarExcelSAP = async function(file) {
         continue;
       }
 
-      const claveID = `${codigo}||${centro}||${almacen}||${lote}`;
-
       const existe = stockExistente.some(r =>
-  r.codigo?.trim().toUpperCase() === codigo &&
-  r.centro?.trim().toUpperCase() === centro &&
-  r.almacen?.trim().toUpperCase() === almacen &&
-  r.lote?.trim().toUpperCase() === lote
-);
+        r.codigo?.trim().toUpperCase() === codigo &&
+        r.centro?.trim().toUpperCase() === centro &&
+        r.almacen?.trim().toUpperCase() === almacen &&
+        r.lote?.trim().toUpperCase() === lote
+      );
 
-if (existe) {
-  updates.push({ codigo, centro, almacen, lote, cantidad_sap, fecha_carga_sap });
-} else {
-  continue; // ignora los que no existen en Supabase
-}
+      if (existe) {
+        updates.push({ codigo, centro, almacen, lote, cantidad_sap, fecha_carga_sap });
+      }
     }
 
     const resultado = await ejecutarActualizacionSAPConRPC(updates);
     errores += resultado.errores;
     erroresDetalles.push(...resultado.erroresDetalles);
-    const actualizadosEstimados = updates.length - resultado.errores;
-actualizados += actualizadosEstimados;
+    actualizados += updates.length - resultado.errores;
 
-// Detectar los registros no actualizados
-const clavesActualizadas = new Set(updates.map(r => `${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`));
-const clavesQueFallaron = new Set(resultado.erroresDetalles.map(r => `${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`));
-const clavesNoActualizadas = updates.filter(r => !clavesQueFallaron.has(`${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`))
-                                    .slice(actualizadosEstimados); // probables fallos silenciosos
+    // 🔍 Detección de NO ACTUALIZADOS silenciosos
+    const clavesFallidas = new Set(resultado.erroresDetalles.map(r =>
+      `${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`
+    ));
 
-if (clavesNoActualizadas.length > 0) {
-  const ws = XLSX.utils.json_to_sheet(clavesNoActualizadas);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "No_Actualizados");
-  XLSX.writeFile(wb, "Errores_No_Actualizados_Supabase.xlsx");
-}
+    const noActualizados = updates.filter(r =>
+      !clavesFallidas.has(`${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`)
+    );
+
+    if (noActualizados.length > 0) {
+      const ws = XLSX.utils.json_to_sheet(noActualizados);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "No_Actualizados");
+      XLSX.writeFile(wb, "Errores_No_Actualizados_Supabase.xlsx");
+    }
 
     if (erroresDetalles.length > 0) {
       const worksheet = XLSX.utils.json_to_sheet(erroresDetalles);
