@@ -535,6 +535,7 @@ window.procesarExcelSAP = async function(file) {
 
     let actualizados = 0, errores = 0;
     const erroresDetalles = [];
+    const inserts = [];
 
     const codigos = [...new Set(data.map(f => f["Código"]?.toString().trim()))];
     const centros = [...new Set(data.map(f => f["Centro"]?.toString().trim()))];
