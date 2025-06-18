@@ -480,6 +480,27 @@ document.getElementById("loader").style.display = "none";
   reader.readAsBinaryString(file);
 }
 
+async function ejecutarActualizacionSAPConRPC(registros) {
+  const { error } = await supabase.rpc("actualizar_sap_masivo", {
+    registros
+  });
+
+  if (error) {
+    console.error("Error al ejecutar función RPC:", error);
+    Swal.fire({
+      icon: 'error',
+      title: 'Error en RPC',
+      text: error.message,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#f39c12'
+    });
+    return false;
+  }
+
+  return true;
+}
+
 window.procesarExcelSAP = async function(file) {
   document.getElementById("loader").style.display = "flex";
   const reader = new FileReader();
@@ -550,25 +571,14 @@ window.procesarExcelSAP = async function(file) {
       }
     }
 
-    // ✅ Actualizar en bloques secuenciales (sin Promise.all)
-    for (let i = 0; i < updates.length; i += 100) {
-      const chunk = updates.slice(i, i + 100);
-      for (const reg of chunk) {
-        const { error } = await supabase.from("stock_contrata")
-          .update({ cantidad_sap: reg.cantidad_sap, fecha_carga_sap: reg.fecha_carga_sap })
-          .eq("codigo", reg.codigo)
-          .eq("centro", reg.centro)
-          .eq("almacen", reg.almacen)
-          .eq("lote", reg.lote);
-
-        if (error) {
-          errores++;
-          erroresDetalles.push({ ...reg, Motivo: "Error en update" });
-        } else {
-          actualizados++;
-        }
-      }
+        const ok = await ejecutarActualizacionSAPConRPC(updates);
+    if (!ok) {
+      errores += updates.length;
+      erroresDetalles.push(...updates.map(r => ({ ...r, Motivo: "Error en RPC update" })));
+    } else {
+      actualizados += updates.length;
     }
+
 
     if (erroresDetalles.length > 0) {
       const worksheet = XLSX.utils.json_to_sheet(erroresDetalles);
