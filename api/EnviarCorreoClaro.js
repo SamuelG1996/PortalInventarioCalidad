@@ -1,6 +1,6 @@
-import { Resend } from 'resend';
+import resend from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+resend.apiKey = process.env.RESEND_API_KEY;
 
 export default async function handler(req, res) {
   console.log("📩 API /api/EnviarCorreoClaro llamada");
@@ -11,7 +11,6 @@ export default async function handler(req, res) {
   }
 
   const { asunto, destinatario, copia, contenido } = req.body;
-
   if (!asunto || !destinatario || !contenido) {
     return res.status(400).json({ error: 'Faltan campos requeridos' });
   }
@@ -36,4 +35,3 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Error inesperado al enviar correo' });
   }
 }
-
