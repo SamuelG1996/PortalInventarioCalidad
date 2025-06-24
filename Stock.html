@@ -91,7 +91,7 @@
       clearTimeout(tiempoEspera);
       const input = document.getElementById("searchInput").value.toLowerCase().trim();
       tiempoEspera = setTimeout(() => {
-        cargarStockContrata(input, 0); // Reinicia desde la primera página
+        ockContrata(input, 0); // Reinicia desde la primera página
       }, 300);
     }
 
@@ -170,7 +170,7 @@
     item.almacen,
     item.cantidad_sap != null ? Number(item.cantidad_sap) : "",
     item.lote,
-    item.tipo_material || '-', // 👈 NUEVO CAMPO
+    item.tipo_material, // 👈 NUEVO CAMPO
     item.fecha_carga_sap ? new Date(item.fecha_carga_sap).toLocaleString("es-PE") : "—",
     item.empresa,
     item.zona,
