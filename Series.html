@@ -47,6 +47,11 @@
       <div class="search-bar-paginacion">
   <input type="text" id="searchInput" placeholder="Buscar por código, descripción o serie..." oninput="filtrarTabla()"/>
   <div class="paginacion">
+    <select id="filtroTipoMaterial" onchange="filtrarTabla()">
+  <option value="">Todos los materiales</option>
+  <option value="RECURRENTE">Solo RECURRENTES</option>
+  <option value="NO RECURRENTE">Solo NO RECURRENTES</option>
+</select>
     <button id="prevPage" onclick="cambiarPagina(-1)">Anterior</button>
     <span id="pageIndicator">Página 1</span>
     <button id="nextPage" onclick="cambiarPagina(1)">Siguiente</button>
@@ -162,6 +167,12 @@ if (modoOrden === 'empresa') {
       `codigo.ilike.%${filtro}%,descripcion.ilike.%${filtro}%,lote.ilike.%${filtro}%,nro_serie.ilike.%${filtro}%,cliente.ilike.%${filtro}%,empresa.ilike.%${filtro}%`
     );
   }
+
+  const tipoMaterial = document.getElementById("filtroTipoMaterial")?.value;
+  if (tipoMaterial === "RECURRENTE" || tipoMaterial === "NO RECURRENTE") {
+    queryBase = queryBase.eq("tipo_material", tipoMaterial);
+  }
+     
   const { data, error, count } = await queryBase;
 
   if (error) {
