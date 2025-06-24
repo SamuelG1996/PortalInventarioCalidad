@@ -143,6 +143,12 @@ let queryBase = supabase
 if (rolUsuario === "Contratista") {
   queryBase = queryBase.eq("empresa", empresaUsuario);
 }
+
+ let query = supabaseClient
+  .from("series_contrata")
+  .select("*")
+  .ilike("codigo", `%${filtroActual}%`)
+  .range(paginaActual * tamañoPagina, (paginaActual + 1) * tamañoPagina - 1);    
   
 if (modoOrden === 'empresa') {
   query = query.order("empresa", { ascending: true });
@@ -151,6 +157,8 @@ if (modoOrden === 'empresa') {
 } else if (modoOrden === 'antiguamiento_compra') {
   query = query.order("fecha_compra", { ascending: true });
 }
+
+     const { data: series, error } = await query;
   
   queryBase = queryBase.range(pagina * tamañoPagina, (pagina + 1) * tamañoPagina - 1);
 
@@ -269,20 +277,17 @@ function filtrarTabla() {
     });
   }
 
-function alternarOrdenCompra() {
-  const boton = document.querySelector("button[onclick='alternarOrdenCompra()']");
-  ordenAscendenteCompra = !ordenAscendenteCompra;
-
-  cargarSeries(modoOrden, ordenAscendenteCompra); // usa el mismo modoOrden pero con orden alternado
-
-  boton.innerHTML = ordenAscendenteCompra
-    ? '<i class="fas fa-sort-amount-down-alt"></i> Antiguamiento Compra ↓'
-    : '<i class="fas fa-sort-amount-up-alt"></i> Antiguamiento Compra ↑';
-
+  cargarSeries(filtroActual, 0); // para que no rompa con tu lógica existente
+}
+      
+  </script>
+  <script>
+function ordenarPorCompra() {
+  modoOrden = 'antiguamiento_compra';
   Swal.fire({
     icon: 'info',
-    title: 'Orden actualizado',
-    text: `Ahora ordenando por Antiguamiento de Compra (${ordenAscendenteCompra ? 'más antiguos primero' : 'más nuevos primero'})`,
+    title: 'Ordenando por antigüedad de compra',
+    text: 'Se mostrará primero lo más antiguo según la fecha de compra.',
     toast: true,
     position: 'bottom-end',
     showConfirmButton: false,
@@ -292,12 +297,10 @@ function alternarOrdenCompra() {
     color: '#ffffff',
     iconColor: '#f39c12'
   });
-}
-      
 
   cargarSeries(filtroActual, 0);
 }
-  </script>
+</script>
 
   <script>
 async function descargarExcelSeries() {
