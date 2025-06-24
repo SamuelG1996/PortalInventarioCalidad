@@ -32,6 +32,10 @@
       <button onclick="alternarOrden()">
       <i class="fas fa-sort-amount-down-alt"></i> Ordenar por Antiguamiento
       </button>
+
+      <button onclick="alternarOrdenCompra()">
+      <i class="fas fa-sort-amount-down-alt"></i> Ordenar por Ant. Compra
+      </button>
       
       <button onclick="abrirDialogoSAPSeries()">
       <i class="fas fa-sync-alt"></i> Actualizar SAP
@@ -119,6 +123,7 @@ let paginaActual = 0;
 const tamañoPagina = 500;
 let filtroActual = '';
 let modoOrden = 'empresa'; // valores posibles: 'empresa' o 'antiguamiento'
+let ordenAscendenteCompra = true; // para el nuevo botón de orden por antigüedad de compra
   
    async function cargarSeries(filtro = '', pagina = 0) {
   mostrarLoader();
@@ -261,6 +266,32 @@ function filtrarTabla() {
       iconColor: '#f39c12'
     });
   }
+
+function alternarOrdenCompra() {
+  const boton = document.querySelector("button[onclick='alternarOrdenCompra()']");
+  ordenAscendenteCompra = !ordenAscendenteCompra;
+
+  cargarSeries(modoOrden, ordenAscendenteCompra); // usa el mismo modoOrden pero con orden alternado
+
+  boton.innerHTML = ordenAscendenteCompra
+    ? '<i class="fas fa-sort-amount-down-alt"></i> Antiguamiento Compra ↓'
+    : '<i class="fas fa-sort-amount-up-alt"></i> Antiguamiento Compra ↑';
+
+  Swal.fire({
+    icon: 'info',
+    title: 'Orden actualizado',
+    text: `Ahora ordenando por Antiguamiento de Compra (${ordenAscendenteCompra ? 'más antiguos primero' : 'más nuevos primero'})`,
+    toast: true,
+    position: 'bottom-end',
+    showConfirmButton: false,
+    timer: 3000,
+    timerProgressBar: true,
+    background: '#1e2022',
+    color: '#ffffff',
+    iconColor: '#f39c12'
+  });
+}
+      
 
   cargarSeries(filtroActual, 0);
 }
