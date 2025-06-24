@@ -449,7 +449,7 @@ async function procesarExcelSeries(file) {
     Swal.fire({
       icon: 'info',
       title: 'Carga finalizada',
-      html: `✅ Registros actualizados: <b>${exitos}</b><br>❌ Registros omitidos por error o validación: <b>${fallos}</b>`,
+      html: `✅ Registros actualizados: <b>${exitos}</b><br>❌ Registros omitidos: <b>${fallos}</b>`,
       toast: true,
       position: 'bottom-end',
       showConfirmButton: false,
