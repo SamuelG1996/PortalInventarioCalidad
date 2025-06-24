@@ -516,6 +516,24 @@ function confirmarCargaExcel(file) {
     }
   });
 }
+
+  function confirmarCargaSoporte(file) {
+  Swal.fire({
+    title: '¿Deseas actualizar los campos de soporte?',
+    text: 'Se modificarán Estado Soporte, Comentario Soporte y Fecha Soporte.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Sí, actualizar',
+    cancelButtonText: 'Cancelar',
+    background: '#1e2022',
+    color: '#ffffff',
+    iconColor: '#f39c12'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      procesarCargaSoporte(file);
+    }
+  });
+}
 </script>
 
     
@@ -722,7 +740,7 @@ async function actualizarSAPSeries() {
   <script>
 function abrirDialogoSAPSeries() {
   Swal.fire({
-    title: 'Actualizacion de Estados',
+    title: 'Actualización Estado Soporte',
     text: '¿Qué deseas hacer?',
     icon: 'question',
     background: '#1e2022',
@@ -736,7 +754,11 @@ function abrirDialogoSAPSeries() {
     reverseButtons: true
   }).then((result) => {
     if (result.isConfirmed) {
-      actualizarSAPSeries();
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.xlsx';
+      input.onchange = () => confirmarCargaSoporte(input.files[0]);
+      input.click();
     } else if (result.isDenied) {
       descargarPlantillaEstadoSoporte();
     }
@@ -785,6 +807,71 @@ function descargarPlantillaEstadoSoporte() {
   XLSX.writeFile(wb, "Plantilla_Estado_Series.xlsx");
 }
   </script>
+<script>
+async function procesarCargaSoporte(file) {
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const workbook = XLSX.read(e.target.result, { type: 'binary' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(sheet);
+
+    const registrosValidos = [];
+    let fallos = 0;
+
+    for (const fila of data) {
+      if (!fila['Código'] || !fila['Centro'] || !fila['Almacén'] || !fila['N° Serie']) {
+        fallos++;
+        continue;
+      }
+
+      registrosValidos.push({
+        codigo: fila['Código'],
+        centro: fila['Centro'],
+        almacen: fila['Almacén'],
+        lote: fila['Lote'] || '-',
+        nro_serie: fila['N° Serie'],
+        estado_soporte: fila['Estado Soporte'] || '-',
+        comentario_soporte: fila['Comentario Soporte'] || '-',
+        fecha_estado_soporte: new Date().toISOString().split('T')[0]
+      });
+    }
+
+    let exitos = 0;
+
+    if (registrosValidos.length > 0) {
+      const { error } = await supabase.rpc('actualizar_estado_soporte', {
+        registros: registrosValidos
+      });
+
+      if (error) {
+        console.error("Error RPC:", error);
+        fallos += registrosValidos.length;
+      } else {
+        exitos = registrosValidos.length;
+      }
+    }
+
+    Swal.fire({
+      icon: 'info',
+      title: 'Carga finalizada',
+      html: `✅ Registros actualizados: <b>${exitos}</b><br>❌ Registros fallidos: <b>${fallos}</b>`,
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 5000,
+      timerProgressBar: true,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#f39c12'
+    });
+
+    cargarSeries(filtroActual, paginaActual);
+  };
+
+  reader.readAsBinaryString(file);
+}
+</script>
+  
   <script src="Js/Loader.js"></script>
   <script src="Js/Sesion.js"></script>
 </body>
