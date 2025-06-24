@@ -27,7 +27,8 @@
       </button>
       
       <input type="file" id="excelInput" accept=".xlsx" style="display:none;" onchange="confirmarCargaExcel(this.files[0])">
-      <button onclick="mostrarMenuCarga()">
+      
+      <button onclick="mostrarMenuCargaSeries()">
         <i class="fas fa-upload"></i> Actualizar Datos
       </button>
       
@@ -735,6 +736,46 @@ function descargarPlantillaSAPSeries() {
   ]});
   XLSX.utils.book_append_sheet(wb, ws, "Plantilla SAP Series");
   XLSX.writeFile(wb, "Plantilla_SAP_Series.xlsx");
+}
+</script>
+
+  <script>
+function mostrarMenuCargaSeries() {
+  Swal.fire({
+    icon: 'question',
+    title: 'Carga de series',
+    text: '¿Qué deseas hacer?',
+    showDenyButton: true,
+    showCancelButton: true,
+    confirmButtonText: 'Subir carga',
+    denyButtonText: 'Descargar plantilla',
+    cancelButtonText: 'Cancelar',
+    background: '#1e2022',
+    color: '#ffffff',
+    iconColor: '#f39c12',
+    toast: false,
+    position: 'center',
+    customClass: {
+      popup: 'rounded-xl'
+    }
+  }).then((result) => {
+    if (result.isConfirmed) {
+      document.getElementById('excelInput').click();
+    } else if (result.isDenied) {
+      descargarPlantillaSeries();
+    }
+  });
+}
+
+function descargarPlantillaSeries() {
+  const wb = XLSX.utils.book_new();
+  const ws_data = [
+    ["Código", "Centro", "Almacén", "Lote", "N° Serie", "Estado Contrata", "SOT", "Cliente", "ID Devolución/Traspaso", "Comentario Contrata"]
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(ws_data);
+  XLSX.utils.book_append_sheet(wb, ws, "ActualizarSeries");
+
+  XLSX.writeFile(wb, "Plantilla_ActualizarSeries.xlsx");
 }
 </script>
   <script src="Js/Loader.js"></script>
