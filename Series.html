@@ -27,31 +27,29 @@
       </button>
       
       <input type="file" id="excelInput" accept=".xlsx" style="display:none;" onchange="confirmarCargaExcel(this.files[0])">
-      
-      <button onclick="mostrarMenuCargaSeries()">
+      <button onclick="mostrarMenuCarga()">
         <i class="fas fa-upload"></i> Actualizar Datos
       </button>
       
       <button onclick="alternarOrden()">
-      <i class="fas fa-sort-amount-down-alt"></i> Ordenar por Antiguamiento
+      <i class="fas fa-sort-amount-down"></i> Ordenar por Antiguamiento
       </button>
       
       <button class="btn btn-warning" onclick="alternarOrdenCompra()">
       <i class="fas fa-sort-amount-down"></i> Ordenar por Antiguamiento Compra
       </button>
+
+      <button onclick="ordenarPorEmpresa()">
+      <i class="fas fa-trash-alt"></i> Borrar Filtros
+      </button>
       
       <button onclick="abrirDialogoSAPSeries()">
-      <i class="fas fa-sync-alt"></i> Actualizar SAP
+      <i class="fas fa-sync-alt"></i> Actualizar Estados Soporte
       </button>
     </div>
       <div class="search-bar-paginacion">
   <input type="text" id="searchInput" placeholder="Buscar por código, descripción o serie..." oninput="filtrarTabla()"/>
   <div class="paginacion">
-    <select id="filtroTipoMaterial" onchange="filtrarTabla()">
-  <option value="">Todos los materiales</option>
-  <option value="RECURRENTE">Solo RECURRENTES</option>
-  <option value="NO RECURRENTE">Solo NO RECURRENTES</option>
-</select>
     <button id="prevPage" onclick="cambiarPagina(-1)">Anterior</button>
     <span id="pageIndicator">Página 1</span>
     <button id="nextPage" onclick="cambiarPagina(1)">Siguiente</button>
@@ -68,8 +66,8 @@
             <th>Almacén</th>
             <th>Lote</th>
             <th>N° Serie</th>
-            <th>Tipo Material</th>
             <th>Empresa</th>
+            <th>Tipo Material</th>
             <th>Fecha Ingreso</th>
             <th>Antiguamiento</th>
             <th>Fecha Compra</th>
@@ -167,12 +165,6 @@ if (modoOrden === 'empresa') {
       `codigo.ilike.%${filtro}%,descripcion.ilike.%${filtro}%,lote.ilike.%${filtro}%,nro_serie.ilike.%${filtro}%,cliente.ilike.%${filtro}%,empresa.ilike.%${filtro}%`
     );
   }
-
-  const tipoMaterial = document.getElementById("filtroTipoMaterial")?.value;
-  if (tipoMaterial === "RECURRENTE" || tipoMaterial === "NO RECURRENTE") {
-    queryBase = queryBase.eq("tipo_material", tipoMaterial);
-  }
-     
   const { data, error, count } = await queryBase;
 
   if (error) {
@@ -205,8 +197,8 @@ if (modoOrden === 'empresa') {
   <td>${serie.almacen || ''}</td>
   <td>${serie.lote || ''}</td>
   <td>${serie.nro_serie || ''}</td>
-  <td>${serie.tipo_material || '-'}</td>
   <td>${serie.empresa || ''}</td>
+  <td>${serie.tipo_material || '-'}</td>
   <td>${formatearFechaSegura(serie.fecha_ingreso)}</td>
   <td class="${claseColor}">${diasAntiguos !== null ? diasAntiguos + ' días' : ''}</td>
   <td>${formatearFechaSegura(serie.fecha_compra)}</td>
@@ -245,16 +237,14 @@ function filtrarTabla() {
 
 
     function alternarOrden() {
-  const boton = document.querySelector("button[onclick='alternarOrden()']");
-
-  if (modoOrden === 'empresa') {
     modoOrden = 'antiguamiento';
-    boton.innerHTML = '<i class="fas fa-sort-amount-down-alt"></i> Ordenar por Empresa';
-
+    const boton = document.querySelector("button[onclick='alternarOrden()']");
+    boton.innerHTML = '<i class="fas fa-sort-amount-down"></i> Ordenado por antigüedad';
+  
     Swal.fire({
       icon: 'info',
-      title: 'Ahora ordenando por antigüedad',
-      text: 'Los equipos más antiguos aparecerán primero.',
+      title: 'Ordenando por antigüedad de ingreso',
+      text: 'Los equipos con más tiempo en stock aparecerán primero.',
       toast: true,
       position: 'bottom-end',
       showConfirmButton: false,
@@ -264,28 +254,9 @@ function filtrarTabla() {
       color: '#ffffff',
       iconColor: '#f39c12'
     });
-
-  } else {
-    modoOrden = 'empresa';
-    boton.innerHTML = '<i class="fas fa-sort-amount-down-alt"></i> Ordenar por Antiguamiento';
-
-    Swal.fire({
-      icon: 'info',
-      title: 'Ahora ordenando por empresa',
-      text: 'Las series se mostrarán agrupadas por contratista.',
-      toast: true,
-      position: 'bottom-end',
-      showConfirmButton: false,
-      timer: 3000,
-      timerProgressBar: true,
-      background: '#1e2022',
-      color: '#ffffff',
-      iconColor: '#f39c12'
-    });
+  
+    cargarSeries(filtroActual, 0);
   }
-
-  cargarSeries(filtroActual, 0);
-}
   </script>
   
   <script>
@@ -309,7 +280,28 @@ function filtrarTabla() {
   cargarSeries(filtroActual, 0); // Recarga la tabla desde la página 0
 }
   </script>
+  
+  <script>
+    function ordenarPorEmpresa() {
+    modoOrden = 'empresa';
+    Swal.fire({
+      icon: 'info',
+      title: 'Limpiando Filtros',
+      text: 'Los equipos volverán al orden original por contratista.',
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#f39c12'
+    });
+    cargarSeries(filtroActual, 0);
+  }
+  </script>
 
+  
   <script>
 async function descargarExcelSeries() {
   mostrarLoader(); // 👈 Mostrar
@@ -407,65 +399,68 @@ async function procesarExcelSeries(file) {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const data = XLSX.utils.sheet_to_json(sheet);
 
-    const ESTADOS_VALIDOS = ["INSTALADO", "DISPONIBLE", "RESERVADO", "FACTURAR", "TRASPASO", "DEVOLUCION", "SPARE"];
-    const registrosValidos = [];
-    let fallos = 0;
+    let exitos = 0, fallos = 0;
 
     for (const fila of data) {
       const estado = (fila['Estado Contrata'] || '').toUpperCase();
+
+      const ESTADOS_VALIDOS = ["INSTALADO", "DISPONIBLE", "RESERVADO", "FACTURAR", "TRASPASO", "DEVOLUCION"];
+
       if (!ESTADOS_VALIDOS.includes(estado)) {
         fallos++;
-        continue;
+        continue; // ❌ Ignorar el registro si no es un estado válido
       }
-
-      // Validaciones
-      if (['INSTALADO', 'RESERVADO'].includes(estado)) {
-        if (!fila.SOT || !fila.Cliente || fila.Cliente.toString().trim() === '') {
-          fallos++;
-          continue;
-        }
-      }
-
-      if (['DEVOLUCION', 'TRASPASO'].includes(estado)) {
-        if (!fila['ID Devolución/Traspaso'] || fila['ID Devolución/Traspaso'].toString().trim() === '') {
-          fallos++;
-          continue;
-        }
-      }
-
-      registrosValidos.push({
-        codigo: fila.Código,
-        centro: fila.Centro,
-        almacen: fila['Almacén'],
-        lote: fila.Lote,
-        nro_serie: fila['N° Serie'],
+      
+      const campos = {
         estado_contrata: estado,
         proyecto_sot: fila.SOT || '-',
         cliente: (fila.Cliente || '-').toString().trim(),
         id_devolucion: fila['ID Devolución/Traspaso'] || '-',
-        fecha_estado_contrata: new Date().toISOString().split('T')[0],
-        comentario_contrata: fila['Comentario Contrata'] || '-'
-      });
-    }
+        fecha_estado_contrata: new Date().toISOString().split('T')[0], // ✅ Fecha actual
+        comentario_contrata: fila['Comentario Contrata'] || '-',
+        estado_soporte: fila['Estado Soporte'] || '-',
+        comentario_soporte: fila['Comentario Soporte'] || '-'
 
-    let exitos = 0;
-    if (registrosValidos.length > 0) {
-      const { error } = await supabase.rpc('actualizar_series_masivo', {
-        registros: registrosValidos
-      });
+      };
+
+      // Validaciones
+       if (['INSTALADO', 'RESERVADO'].includes(estado)) {
+        if (!fila.SOT || !fila.Cliente || fila.Cliente.toString().trim() === '') { 
+          fallos++; 
+          continue; 
+        }
+      }
+      
+      if (['DEVOLUCION', 'TRASPASO'].includes(estado)) {
+        if (!fila['ID Devolución/Traspaso'] || fila['ID Devolución/Traspaso'].toString().trim() === '') { 
+          fallos++; 
+          continue; 
+        }
+      }
+
+      // Actualizar en Supabase
+      const { error } = await supabase
+        .from('series_contrata')
+        .update(campos)
+        .eq('codigo', fila.Código)
+        .eq('centro', fila.Centro)
+        .eq('almacen', fila['Almacén'])
+        .eq('lote', fila.Lote)
+        .eq('nro_serie', fila['N° Serie']);
 
       if (error) {
-        console.error("Error RPC:", error);
-        fallos += registrosValidos.length;
+        console.error("Error:", error);
+        fallos++;
       } else {
-        exitos = registrosValidos.length;
+        exitos++;
       }
     }
 
+    // Mostrar resultado
     Swal.fire({
       icon: 'info',
       title: 'Carga finalizada',
-      html: `✅ Registros actualizados: <b>${exitos}</b><br>❌ Registros fallidos: <b>${fallos}</b>`,
+      html: `✅ Registros actualizados: <b>${exitos}</b><br>❌ Registros omitidos por error o validación: <b>${fallos}</b>`,
       toast: true,
       position: 'bottom-end',
       showConfirmButton: false,
@@ -476,12 +471,11 @@ async function procesarExcelSeries(file) {
       iconColor: '#f39c12'
     });
 
+    // Refrescar la vista
     cargarSeries(filtroActual, paginaActual);
   };
-
   reader.readAsBinaryString(file);
 }
-
 </script>
 
   
@@ -753,46 +747,6 @@ function descargarPlantillaSAPSeries() {
   ]});
   XLSX.utils.book_append_sheet(wb, ws, "Plantilla SAP Series");
   XLSX.writeFile(wb, "Plantilla_SAP_Series.xlsx");
-}
-</script>
-
-  <script>
-function mostrarMenuCargaSeries() {
-  Swal.fire({
-    icon: 'question',
-    title: 'Actualización de estados',
-    text: '¿Qué deseas hacer?',
-    showDenyButton: true,
-    showCancelButton: true,
-    confirmButtonText: 'Subir carga',
-    denyButtonText: 'Descargar plantilla',
-    cancelButtonText: 'Cancelar',
-    background: '#1e2022',
-    color: '#ffffff',
-    iconColor: '#f39c12',
-    toast: false,
-    position: 'center',
-    customClass: {
-      popup: 'rounded-xl'
-    }
-  }).then((result) => {
-    if (result.isConfirmed) {
-      document.getElementById('excelInput').click();
-    } else if (result.isDenied) {
-      descargarPlantillaSeries();
-    }
-  });
-}
-
-function descargarPlantillaSeries() {
-  const wb = XLSX.utils.book_new();
-  const ws_data = [
-    ["Código", "Centro", "Almacén", "Lote", "N° Serie", "Estado Contrata", "SOT", "Cliente", "ID Devolución/Traspaso", "Comentario Contrata"]
-  ];
-  const ws = XLSX.utils.aoa_to_sheet(ws_data);
-  XLSX.utils.book_append_sheet(wb, ws, "ActualizarSeries");
-
-  XLSX.writeFile(wb, "Plantilla_ActualizarSeries.xlsx");
 }
 </script>
   <script src="Js/Loader.js"></script>
