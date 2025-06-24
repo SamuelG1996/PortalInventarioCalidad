@@ -777,12 +777,14 @@ function descargarPlantillaEstadoSoporte() {
       "N° Serie": "",
       "Estado Soporte": "",
       "Comentario Soporte": ""
+      "Estado Conciliación": "",
+      "Subestado Conciliación": ""
     }
   ];
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(datos, { header: [
-    "Código", "Centro", "Almacén", "Lote", "N° Serie", "Estado Soporte", "Comentario Soporte"
+    "Código", "Centro", "Almacén", "Lote", "N° Serie", "Estado Soporte", "Comentario Soporte", "Estado Conciliación", "Subestado Conciliación"
   ]});
   XLSX.utils.book_append_sheet(wb, ws, "Plantilla Estado Soporte");
   XLSX.writeFile(wb, "Plantilla_Estado_Soporte.xlsx");
