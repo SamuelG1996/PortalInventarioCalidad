@@ -8,7 +8,9 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <link rel="icon" type="image/x-icon" href="Imagenes/favicon.ico">
 </head>
+  
 <body class="menu-page formulario-traspaso">
     <div class="content">
   <div class="contenedor">
@@ -32,17 +34,13 @@
       <button onclick="alternarOrden()">
       <i class="fas fa-sort-amount-down-alt"></i> Ordenar por Antiguamiento
       </button>
-
-      <button onclick="alternarOrdenCompra()">
-      <i class="fas fa-sort-amount-down-alt"></i> Ordenar por Ant. Compra
-      </button>
       
       <button onclick="abrirDialogoSAPSeries()">
       <i class="fas fa-sync-alt"></i> Actualizar SAP
       </button>
     </div>
       <div class="search-bar-paginacion">
-  <input type="text" id="searchInput" placeholder="Buscar por código, descripción o zona..." oninput="filtrarTabla()"/>
+  <input type="text" id="searchInput" placeholder="Buscar por código, descripción o serie..." oninput="filtrarTabla()"/>
   <div class="paginacion">
     <button id="prevPage" onclick="cambiarPagina(-1)">Anterior</button>
     <span id="pageIndicator">Página 1</span>
@@ -123,7 +121,6 @@ let paginaActual = 0;
 const tamañoPagina = 500;
 let filtroActual = '';
 let modoOrden = 'empresa'; // valores posibles: 'empresa' o 'antiguamiento'
-let ordenAscendenteCompra = true; // para el nuevo botón de orden por antigüedad de compra
   
    async function cargarSeries(filtro = '', pagina = 0) {
   mostrarLoader();
@@ -143,22 +140,12 @@ let queryBase = supabase
 if (rolUsuario === "Contratista") {
   queryBase = queryBase.eq("empresa", empresaUsuario);
 }
-
- let query = supabaseClient
-  .from("series_contrata")
-  .select("*")
-  .ilike("codigo", `%${filtroActual}%`)
-  .range(paginaActual * tamañoPagina, (paginaActual + 1) * tamañoPagina - 1);    
   
-if (modoOrden === 'empresa') {
-  query = query.order("empresa", { ascending: true });
-} else if (modoOrden === 'antiguamiento') {
-  query = query.order("fecha_ingreso", { ascending: true });
-} else if (modoOrden === 'antiguamiento_compra') {
-  query = query.order("fecha_compra", { ascending: true });
-}
-
-     const { data: series, error } = await query;
+  if (modoOrden === 'empresa') {
+    queryBase = queryBase.order('empresa', { ascending: true });
+  } else {
+    queryBase = queryBase.order('fecha_ingreso', { ascending: true }); // más antiguos primero
+  }
   
   queryBase = queryBase.range(pagina * tamañoPagina, (pagina + 1) * tamañoPagina - 1);
 
@@ -277,30 +264,9 @@ function filtrarTabla() {
     });
   }
 
-  cargarSeries(filtroActual, 0); // para que no rompa con tu lógica existente
-}
-      
-  </script>
-  <script>
-function ordenarPorCompra() {
-  modoOrden = 'antiguamiento_compra';
-  Swal.fire({
-    icon: 'info',
-    title: 'Ordenando por antigüedad de compra',
-    text: 'Se mostrará primero lo más antiguo según la fecha de compra.',
-    toast: true,
-    position: 'bottom-end',
-    showConfirmButton: false,
-    timer: 3000,
-    timerProgressBar: true,
-    background: '#1e2022',
-    color: '#ffffff',
-    iconColor: '#f39c12'
-  });
-
   cargarSeries(filtroActual, 0);
 }
-</script>
+  </script>
 
   <script>
 async function descargarExcelSeries() {
