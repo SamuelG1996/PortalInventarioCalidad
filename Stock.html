@@ -68,6 +68,7 @@
             <th>Almacén</th>
             <th>Cantidad</th>
             <th>Lote</th>
+            <th style="display: none;">Tipo Material</th>
             <th>Fecha SAP</th>
             <th>Empresa</th>
             <th>Zona</th>
@@ -327,6 +328,7 @@ if (filtro.trim() !== "") {
         <td>${formatearNumero(item.cantidad_sap)}</td>
         <td>${item.lote}</td>
         <td>${fechaSAP}</td>
+        <td style="display: none;">${fila.tipo_material || ''}</td>
         <td>${item.empresa}</td>
         <td>${item.zona}</td>
         <td>${formatearNumero(item.stock_real ?? "")}</td>
