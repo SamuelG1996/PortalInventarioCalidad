@@ -144,11 +144,13 @@ if (rolUsuario === "Contratista") {
   queryBase = queryBase.eq("empresa", empresaUsuario);
 }
   
-  if (modoOrden === 'empresa') {
-    queryBase = queryBase.order('empresa', { ascending: true });
-  } else {
-    queryBase = queryBase.order('fecha_ingreso', { ascending: true }); // más antiguos primero
-  }
+if (modoOrden === 'empresa') {
+  query = query.order("empresa", { ascending: true });
+} else if (modoOrden === 'antiguamiento') {
+  query = query.order("fecha_ingreso", { ascending: true });
+} else if (modoOrden === 'antiguamiento_compra') {
+  query = query.order("fecha_compra", { ascending: true });
+}
   
   queryBase = queryBase.range(pagina * tamañoPagina, (pagina + 1) * tamañoPagina - 1);
 
