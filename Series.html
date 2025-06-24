@@ -362,6 +362,8 @@ async function descargarExcelSeries() {
       "Estado Soporte": serie.estado_soporte,
       "Comentario Soporte": serie.comentario_soporte,
       "Fecha Estado Soporte": formatearFechaSegura(serie.fecha_estado_soporte)
+      "Estado Conciliación": serie.estado_conciliacion || '-',
+      "Subestado Conciliación": serie.subestado_conciliacion || '-'
     }));
 
     const wb = XLSX.utils.book_new();
@@ -819,6 +821,7 @@ async function procesarCargaSoporte(file) {
     let fallos = 0;
 
     for (const fila of data) {
+      // Validación básica de clave
       if (!fila['Código'] || !fila['Centro'] || !fila['Almacén'] || !fila['N° Serie']) {
         fallos++;
         continue;
@@ -832,7 +835,9 @@ async function procesarCargaSoporte(file) {
         nro_serie: fila['N° Serie'],
         estado_soporte: fila['Estado Soporte'] || '-',
         comentario_soporte: fila['Comentario Soporte'] || '-',
-        fecha_estado_soporte: new Date().toISOString().split('T')[0]
+        fecha_estado_soporte: new Date().toISOString().split('T')[0],
+        estado_conciliacion: fila['Estado Conciliación'] || '-',
+        subestado_conciliacion: fila['Subestado Conciliación'] || '-'
       });
     }
 
