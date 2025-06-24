@@ -44,6 +44,7 @@
         <button onclick="descargarExcel()">Descargar Excel</button>
         <button onclick="mostrarMenuCargaStock()"><i class="fas fa-upload"></i> Actualizar Datos</button>
          <button onclick="irASeries()">Ver Series</button>
+          <button id="btnTipoMaterial" onclick="filtrarPorTipoMaterial()">Tipo: Todos</button>
         <button id="btnActualizarSAP" style="display: none;" onclick="mostrarMenuCargaSAP()">
         <i class="fas fa-file-upload"></i> Actualizar SAP
       </button>
@@ -53,7 +54,6 @@
     </div>
 <div class="search-bar-paginacion">
   <input type="text" id="searchInput" placeholder="Buscar por código, descripción, almacén, zona..." oninput="filtrarTabla()">
-  <button id="btnTipoMaterial" onclick="filtrarPorTipoMaterial()">Tipo: Todos</button>
   <div id="paginacion" class="paginacion"></div>
 </div>
 
