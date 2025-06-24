@@ -393,41 +393,36 @@ async function procesarExcelSeries(file) {
     const data = XLSX.utils.sheet_to_json(sheet);
 
     let exitos = 0, fallos = 0;
+    const ESTADOS_VALIDOS = ["INSTALADO", "DISPONIBLE", "RESERVADO", "FACTURAR", "TRASPASO", "DEVOLUCION"];
 
     for (const fila of data) {
       const estado = (fila['Estado Contrata'] || '').toUpperCase();
-
-      const ESTADOS_VALIDOS = ["INSTALADO", "DISPONIBLE", "RESERVADO", "FACTURAR", "TRASPASO", "DEVOLUCION"];
-
       if (!ESTADOS_VALIDOS.includes(estado)) {
         fallos++;
-        continue; // ❌ Ignorar el registro si no es un estado válido
+        continue;
       }
-      
+
       const campos = {
         estado_contrata: estado,
         proyecto_sot: fila.SOT || '-',
         cliente: (fila.Cliente || '-').toString().trim(),
         id_devolucion: fila['ID Devolución/Traspaso'] || '-',
-        fecha_estado_contrata: new Date().toISOString().split('T')[0], // ✅ Fecha actual
-        comentario_contrata: fila['Comentario Contrata'] || '-',
-        estado_soporte: fila['Estado Soporte'] || '-',
-        comentario_soporte: fila['Comentario Soporte'] || '-'
-
+        fecha_estado_contrata: new Date().toISOString().split('T')[0],
+        comentario_contrata: fila['Comentario Contrata'] || '-'
       };
 
       // Validaciones
-       if (['INSTALADO', 'RESERVADO'].includes(estado)) {
-        if (!fila.SOT || !fila.Cliente || fila.Cliente.toString().trim() === '') { 
-          fallos++; 
-          continue; 
+      if (['INSTALADO', 'RESERVADO'].includes(estado)) {
+        if (!fila.SOT || !fila.Cliente || fila.Cliente.toString().trim() === '') {
+          fallos++;
+          continue;
         }
       }
-      
+
       if (['DEVOLUCION', 'TRASPASO'].includes(estado)) {
-        if (!fila['ID Devolución/Traspaso'] || fila['ID Devolución/Traspaso'].toString().trim() === '') { 
-          fallos++; 
-          continue; 
+        if (!fila['ID Devolución/Traspaso'] || fila['ID Devolución/Traspaso'].toString().trim() === '') {
+          fallos++;
+          continue;
         }
       }
 
@@ -449,7 +444,7 @@ async function procesarExcelSeries(file) {
       }
     }
 
-    // Mostrar resultado
+    // Resultado
     Swal.fire({
       icon: 'info',
       title: 'Carga finalizada',
@@ -464,11 +459,11 @@ async function procesarExcelSeries(file) {
       iconColor: '#f39c12'
     });
 
-    // Refrescar la vista
     cargarSeries(filtroActual, paginaActual);
   };
   reader.readAsBinaryString(file);
 }
+
 </script>
 
   
