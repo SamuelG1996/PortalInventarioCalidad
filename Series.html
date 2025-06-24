@@ -520,7 +520,7 @@ function confirmarCargaExcel(file) {
   function confirmarCargaSoporte(file) {
   Swal.fire({
     title: '¿Deseas actualizar los campos de soporte?',
-    text: 'Se modificarán Estado Soporte, Comentario Soporte y Fecha Soporte.',
+    text: 'Se modificarán los datos seleccionados.',
     icon: 'warning',
     showCancelButton: true,
     confirmButtonText: 'Sí, actualizar',
@@ -751,7 +751,7 @@ function abrirDialogoSAPSeries() {
     confirmButtonText: 'Subir carga',
     denyButtonText: 'Descargar plantilla',
     cancelButtonText: 'Cancelar',
-    reverseButtons: true
+    reverseButtons: false
   }).then((result) => {
     if (result.isConfirmed) {
       const input = document.createElement('input');
