@@ -394,7 +394,7 @@ async function procesarExcelSeries(file) {
     const data = XLSX.utils.sheet_to_json(sheet);
 
     let exitos = 0, fallos = 0;
-    const ESTADOS_VALIDOS = ["INSTALADO", "DISPONIBLE", "RESERVADO", "FACTURAR", "TRASPASO", "DEVOLUCION"];
+    const ESTADOS_VALIDOS = ["INSTALADO", "DISPONIBLE", "RESERVADO", "FACTURAR", "TRASPASO", "DEVOLUCION", "SPARE"];
 
     for (const fila of data) {
       const estado = (fila['Estado Contrata'] || '').toUpperCase();
