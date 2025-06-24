@@ -201,6 +201,21 @@
   window.location.href = "/Series"; 
 }
 
+    function filtrarPorTipoMaterial() {
+  if (filtroTipo === '') {
+    filtroTipo = 'RECURRENTE';
+    document.getElementById("btnTipoMaterial").innerText = "Tipo: Recurrente";
+  } else if (filtroTipo === 'RECURRENTE') {
+    filtroTipo = 'NO RECURRENTE';
+    document.getElementById("btnTipoMaterial").innerText = "Tipo: No Recurrente";
+  } else {
+    filtroTipo = '';
+    document.getElementById("btnTipoMaterial").innerText = "Tipo: Todos";
+  }
+
+  cargarStockContrata(filtroActual, 0);
+}
+
   </script>
 
 
@@ -663,22 +678,6 @@ function confirmarCargaExcelSAP(file) {
       procesarExcelSAP(file);
     }
   });
-}
-</script>
-<script>
-function filtrarPorTipoMaterial() {
-  if (filtroTipo === '') {
-    filtroTipo = 'RECURRENTE';
-    document.getElementById("btnTipoMaterial").innerText = "Tipo: Recurrente";
-  } else if (filtroTipo === 'RECURRENTE') {
-    filtroTipo = 'NO RECURRENTE';
-    document.getElementById("btnTipoMaterial").innerText = "Tipo: No Recurrente";
-  } else {
-    filtroTipo = '';
-    document.getElementById("btnTipoMaterial").innerText = "Tipo: Todos";
-  }
-
-  cargarStockContrata(filtroActual, 0);
 }
 </script>
 
