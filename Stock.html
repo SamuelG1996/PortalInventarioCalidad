@@ -43,8 +43,8 @@
       <div class="acciones-tabla">
         <button onclick="descargarExcel()">Descargar Excel</button>
         <button onclick="mostrarMenuCargaStock()"><i class="fas fa-upload"></i> Actualizar Datos</button>
+        <button id="btnTipoMaterial" onclick="filtrarPorTipoMaterial()">Filtrar Tipo Material</button>
          <button onclick="irASeries()">Ver Series</button>
-          <button id="btnTipoMaterial" onclick="filtrarPorTipoMaterial()">Tipo: Todos</button>
         <button id="btnActualizarSAP" style="display: none;" onclick="mostrarMenuCargaSAP()">
         <i class="fas fa-file-upload"></i> Actualizar SAP
       </button>
@@ -84,6 +84,7 @@
 
   <script>
       let tiempoEspera = null;
+      let filtroTipo = ''; // ⬅️ Aquí declaras la variable global
     
     function filtrarTabla() {
       clearTimeout(tiempoEspera);
@@ -109,6 +110,10 @@
       .from("stock_contrata")
       .select("*")
       .range(desde, desde + paso - 1);
+
+    if (filtroTipo !== '') {
+  query = query.eq("tipo_material", filtroTipo);
+}
 
     if (rolUsuario === "Contratista") {
       query = query.ilike("empresa", empresaUsuario.toUpperCase());
@@ -658,6 +663,22 @@ function confirmarCargaExcelSAP(file) {
       procesarExcelSAP(file);
     }
   });
+}
+</script>
+<script>
+function filtrarPorTipoMaterial() {
+  if (filtroTipo === '') {
+    filtroTipo = 'RECURRENTE';
+    document.getElementById("btnTipoMaterial").innerText = "Tipo: Recurrente";
+  } else if (filtroTipo === 'RECURRENTE') {
+    filtroTipo = 'NO RECURRENTE';
+    document.getElementById("btnTipoMaterial").innerText = "Tipo: No Recurrente";
+  } else {
+    filtroTipo = '';
+    document.getElementById("btnTipoMaterial").innerText = "Tipo: Todos";
+  }
+
+  cargarStock(filtroActual, 0); // Refresca con nuevo filtro
 }
 </script>
 
