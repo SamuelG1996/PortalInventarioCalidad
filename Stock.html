@@ -7,7 +7,9 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="icon" type="image/x-icon" href="Imagenes/favicon.ico">
 </head>
+  
 <body class="menu-page">
 
   <div class="sidebar">
@@ -161,6 +163,7 @@
     item.almacen,
     item.cantidad_sap != null ? Number(item.cantidad_sap) : "",
     item.lote,
+    item.tipo_material || '-', // 👈 NUEVO CAMPO
     item.fecha_carga_sap ? new Date(item.fecha_carga_sap).toLocaleString("es-PE") : "—",
     item.empresa,
     item.zona,
@@ -173,7 +176,7 @@
   ]);
 
   const headers = [
-    "Código", "Descripción", "Centro", "Almacén", "Cantidad SAP", "Lote", "Fecha SAP", "Empresa",
+    "Código", "Descripción", "Centro", "Almacén", "Cantidad SAP", "Lote", "Tipo Material", "Fecha SAP", "Empresa",
     "Zona", "Stock físico", "Reservado", "Disponible", "Fecha Data"
   ];
 
@@ -324,303 +327,57 @@ if (filtro.trim() !== "") {
   const reader = new FileReader();
 
   reader.onload = async (e) => {
-const workbook = XLSX.read(e.target.result, { type: 'binary' });
-const sheet = workbook.Sheets[workbook.SheetNames[0]];
-const data = XLSX.utils.sheet_to_json(sheet);
-
-let insertados = 0, actualizados = 0, eliminados = 0, errores = 0;
-
-const codigos = [...new Set(data.map(f => f["Código"]?.toString().trim().toUpperCase()))];
-const centros = [...new Set(data.map(f => f["Centro"]?.toString().trim().toUpperCase()))];
-const almacenes = [...new Set(data.map(f => f["Almacén"]?.toString().trim().toUpperCase()))];
-
-const { data: stockExistente } = await supabase
-  .from("stock_contrata")
-  .select("codigo, centro, almacen, lote")
-  .in("centro", centros)
-  .in("almacen", almacenes);
-
-const { data: empresas } = await supabase.from("centros_empresa").select("*");
-const { data: zonas } = await supabase.from("almacenes_zonas").select("*");
-const { data: descripciones } = await supabase
-  .from("productos")
-  .select("codigo, descripcion")
-  .in("codigo", codigos);
-
-const fecha_carga_sap = new Date().toLocaleString("sv-SE", { timeZone: "America/Lima" }).replace(" ", "T");
-
-const clavesActualizadas = new Set();
-const inserts = [];
-const updates = [];
-const erroresExcel = [];
-const centrosAlmacenes = new Set();
-
-for (const fila of data) {
-  const codigo = fila["Código"]?.toString().trim().toUpperCase();
-  const centro = fila["Centro"]?.toString().trim().toUpperCase();
-  const almacen = fila["Almacén"]?.toString().trim().toUpperCase();
-  const lote = fila["Lote"]?.toString().trim().toUpperCase();
-  const cantidad_sap = parseFloat(fila["Cantidad SAP"]);
-
-  if (!codigo || !centro || !almacen || !lote || isNaN(cantidad_sap)) {
-    errores++;
-    erroresExcel.push(fila);
-    continue;
-  }
-
-  const claveID = `${codigo}||${centro}||${almacen}||${lote}`;
-  clavesActualizadas.add(claveID);
-  centrosAlmacenes.add(`${centro}||${almacen}`);
-
-  const empresa = empresas.find(e => e.centro?.toUpperCase() === centro)?.empresa || "SIN EMPRESA";
-  const zona = zonas.find(z => z.almacen?.toUpperCase() === almacen)?.zona || "SIN ZONA";
-  const descripcion = descripciones.find(d => d.codigo?.toUpperCase() === codigo)?.descripcion || "SIN DESCRIPCIÓN";
-
-  const existe = stockExistente.find(r =>
-    r.codigo?.toUpperCase() === codigo &&
-    r.centro?.toUpperCase() === centro &&
-    r.almacen?.toUpperCase() === almacen &&
-    r.lote?.toUpperCase() === lote
-  );
-
-  if (existe) {
-    updates.push({ codigo, centro, almacen, lote, cantidad_sap, fecha_carga_sap });
-  } else {
-    inserts.push({ codigo, centro, almacen, lote, cantidad_sap, fecha_carga_sap, empresa, zona, descripcion });
-  }
-}
-
-// INSERTS
-const chunkSize = 100;
-for (let i = 0; i < inserts.length; i += chunkSize) {
-  const chunk = inserts.slice(i, i + chunkSize);
-  const { error } = await supabase.from("stock_contrata").insert(chunk);
-  if (error) {
-    errores += chunk.length;
-    erroresExcel.push(...chunk);
-  } else {
-    insertados += chunk.length;
-  }
-}
-
-// UPDATES
-for (let i = 0; i < updates.length; i += chunkSize) {
-  const chunk = updates.slice(i, i + chunkSize);
-  const promesas = chunk.map(registro =>
-    supabase
-      .from("stock_contrata")
-      .update({ cantidad_sap: registro.cantidad_sap, fecha_carga_sap: registro.fecha_carga_sap })
-      .eq("codigo", registro.codigo)
-      .eq("centro", registro.centro)
-      .eq("almacen", registro.almacen)
-      .eq("lote", registro.lote)
-  );
-  const resultados = await Promise.all(promesas);
-  resultados.forEach((r, idx) => {
-    if (r.error) {
-      errores++;
-      erroresExcel.push(chunk[idx]);
-    } else {
-      actualizados++;
-    }
-  });
-}
-
-// ELIMINADOS
-for (const ca of centrosAlmacenes) {
-  const [centro, almacen] = ca.split("||");
-
-  const clavesCentroAlmacen = Array.from(clavesActualizadas).filter(k => {
-    const partes = k.split("||");
-    return partes[1] === centro && partes[2] === almacen;
-  });
-
-  if (clavesCentroAlmacen.length === 0) continue;
-
-  const { error, count } = await supabase
-    .from("stock_contrata")
-    .delete()
-    .eq("centro", centro)
-    .eq("almacen", almacen)
-    .not("clave", "in", clavesCentroAlmacen);
-
-  if (!error) eliminados += count ?? 0;
-}
-
-// EXPORTAR ERRORES A EXCEL
-if (erroresExcel.length > 0) {
-  const hoja = XLSX.utils.json_to_sheet(erroresExcel);
-  const libro = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(libro, hoja, "Errores");
-  XLSX.writeFile(libro, "Errores_Carga_SAP.xlsx");
-}
-
-// ALERTA FINAL
-Swal.fire({
-  icon: 'info',
-  title: 'Carga completada',
-  html: `
-    ✅ <b>${actualizados}</b> actualizados<br>
-    ➕ <b>${insertados}</b> insertados<br>
-    ❌ <b>${eliminados}</b> eliminados<br>
-    ⚠️ <b>${errores}</b> errores`,
-  toast: true,
-  position: 'bottom-end',
-  showConfirmButton: false,
-  timer: 6000,
-  timerProgressBar: true,
-  background: '#1e2022',
-  color: '#ffffff',
-  iconColor: '#f39c12'
-});
-
-await window.cargarStockContrata();
-document.getElementById("loader").style.display = "none";
-    };
-  reader.readAsBinaryString(file);
-}
-
-async function ejecutarActualizacionSAPConRPC(registros) {
-  const chunkSize = 1000;
-  let errores = 0;
-  const erroresDetalles = [];
-
-  for (let i = 0; i < registros.length; i += chunkSize) {
-    const bloque = registros.slice(i, i + chunkSize);
-
-    const { error } = await supabase.rpc("actualizar_sap_masivo", {
-      registros: JSON.parse(JSON.stringify(bloque))
-    });
-
-    if (error) {
-      console.warn(`⚠️ Bloque fallido [${i}–${i + chunkSize}]: ${error.message}`);
-
-      // Si el bloque completo falla, intentamos de 100 en 100
-      for (let j = 0; j < bloque.length; j += 100) {
-        const subBloque = bloque.slice(j, j + 100);
-        const { error: subError } = await supabase.rpc("actualizar_sap_masivo", {
-          registros: JSON.parse(JSON.stringify(subBloque))
-        });
-
-        if (subError) {
-          console.warn(`❌ Subbloque fallido [${i + j}–${i + j + 100}]: ${subError.message}`);
-
-          // Intentamos registro por registro
-          for (const reg of subBloque) {
-            const { error: regError } = await supabase.rpc("actualizar_sap_masivo", {
-              registros: JSON.parse(JSON.stringify([reg]))
-            });
-            if (regError) {
-              errores++;
-              erroresDetalles.push({ ...reg, Motivo: regError.message });
-            }
-          }
-
-        }
-      }
-    }
-  }
-
-  return { errores, erroresDetalles };
-}
-    
-window.procesarExcelSAP = async function(file) {
-  document.getElementById("loader").style.display = "flex";
-  const reader = new FileReader();
-
-  reader.onload = async (e) => {
     const workbook = XLSX.read(e.target.result, { type: 'binary' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const data = XLSX.utils.sheet_to_json(sheet);
 
-    const fecha_carga_sap = new Date().toISOString();
-    const updates = [];
-    const erroresDetalles = [];
+    let exitos = 0, fallos = 0;
 
-    const codigos = [...new Set(data.map(f => f["Código"]?.toString().trim()))];
-    const centros = [...new Set(data.map(f => f["Centro"]?.toString().trim()))];
-    const almacenes = [...new Set(data.map(f => f["Almacén"]?.toString().trim()))];
+    // Creamos un array de promesas para actualizaciones paralelas
+    const promesas = data.map(async (fila) => {
+      const codigo = fila['Código']?.toString().trim();
+      const centro = fila['Centro']?.toString().trim();
+      const almacen = fila['Almacén']?.toString().trim();
+      const lote = fila['Lote']?.toString().trim();
 
-    const { data: existentes, error } = await supabase
-      .from("stock_contrata")
-      .select("codigo, centro, almacen, lote")
-      .in("centro", centros)
-      .in("almacen", almacenes);
+      if (!codigo || !centro || !almacen || !lote) return false;
 
-    if (error || !existentes) {
-      console.error("Error al obtener datos existentes:", error);
-      Swal.fire("Error", "No se pudo validar registros existentes", "error");
-      document.getElementById("loader").style.display = "none";
-      return;
-    }
+      const stock_real = parseFloat(fila['Stock físico']);
+      const stock_reservado = parseFloat(fila['Reservado']);
 
-    for (const fila of data) {
-      const codigo = fila["Código"]?.toString().trim();
-      const centro = fila["Centro"]?.toString().trim();
-      const almacen = fila["Almacén"]?.toString().trim();
-      const lote = fila["Lote"]?.toString().trim();
-      const cantidad_sap = parseFloat(fila["Cantidad SAP"]);
-
-      if (!codigo || !centro || !almacen || !lote || isNaN(cantidad_sap)) {
-        erroresDetalles.push({ ...fila, Motivo: "Campos inválidos o vacíos" });
-        continue;
+      if (isNaN(stock_real) || isNaN(stock_reservado) || stock_real < 0 || stock_reservado < 0) {
+        return false;
       }
 
-      const existe = existentes.some(r =>
-        r.codigo === codigo && r.centro === centro && r.almacen === almacen && r.lote === lote
-      );
+      const fecha_actualizacion = new Date().toISOString();
 
-      if (existe) {
-        updates.push({ codigo, centro, almacen, lote, cantidad_sap, fecha_carga_sap });
-      }
-    }
+      const { error } = await supabase
+        .from('stock_contrata')
+        .update({ stock_real, stock_reservado, fecha_actualizacion })
+        .eq('codigo', codigo)
+        .eq('centro', centro)
+        .eq('almacen', almacen)
+        .eq('lote', lote);
 
-    const noActualizados = [];
+      return !error;
+    });
 
-    for (let i = 0; i < updates.length; i += 1000) {
-      const bloque = updates.slice(i, i + 1000);
-      const { error } = await supabase.rpc("actualizar_sap_masivo", { registros: bloque });
+    // Ejecutamos todas las promesas en paralelo
+    const resultados = await Promise.all(promesas);
 
-      if (error) {
-        console.warn("Bloque completo falló:", error.message);
+    // Contamos éxitos y fallos
+    resultados.forEach(r => r ? exitos++ : fallos++);
 
-        // Reintenta por bloques de 100
-        for (let j = 0; j < bloque.length; j += 100) {
-          const subBloque = bloque.slice(j, j + 100);
-          const { error: error100 } = await supabase.rpc("actualizar_sap_masivo", { registros: subBloque });
-
-          if (error100) {
-            // Reintenta por fila
-            for (const fila of subBloque) {
-              const { error: err } = await supabase.rpc("actualizar_sap_masivo", { registros: [fila] });
-              if (err) {
-                noActualizados.push({ ...fila, Motivo: err.message });
-              }
-            }
-          }
-        }
-      }
-    }
-
-    const totalActualizados = updates.length - noActualizados.length;
-
-    // Exporta errores (los no actualizados)
-    if (noActualizados.length > 0) {
-      const hoja = XLSX.utils.json_to_sheet(noActualizados);
-      const libro = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(libro, hoja, "No_Actualizados");
-      XLSX.writeFile(libro, "Errores_No_Actualizados_Supabase.xlsx");
-    }
 
     Swal.fire({
       icon: 'info',
-      title: 'Actualización SAP completada',
-      html: `✅ <b>${totalActualizados}</b> actualizados<br>⚠️ <b>${noActualizados.length}</b> no actualizados`,
+      title: 'Carga finalizada',
+      html: `✅ Registros actualizados: <b>${exitos}</b><br>❌ Registros con error: <b>${fallos}</b>`,
       toast: true,
       position: 'bottom-end',
-      timer: 5000,
-      timerProgressBar: true,
       showConfirmButton: false,
+      timer: 4000,
+      timerProgressBar: true,
       background: '#1e2022',
       color: '#ffffff',
       iconColor: '#f39c12'
@@ -631,7 +388,177 @@ window.procesarExcelSAP = async function(file) {
   };
 
   reader.readAsBinaryString(file);
-};
+}
+
+
+window.procesarExcelSAP = async function(file) {
+  document.getElementById("loader").style.display = "flex";
+  const reader = new FileReader();
+
+  reader.onload = async (e) => {
+    const workbook = XLSX.read(e.target.result, { type: 'binary' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(sheet);
+
+    let insertados = 0, actualizados = 0, errores = 0;
+
+    for (const fila of data) {
+      const codigo = fila["Código"]?.toString().trim();
+      const centro = fila["Centro"]?.toString().trim();
+      const almacen = fila["Almacén"]?.toString().trim();
+      const lote = fila["Lote"]?.toString().trim();
+      const cantidad_sap = parseFloat(fila["Cantidad SAP"]);
+
+      if (!codigo || !centro || !almacen || !lote || isNaN(cantidad_sap)) {
+        errores++;
+        continue;
+      }
+
+      const { data: existe, error: errorSelect } = await supabase
+        .from("stock_contrata")
+        .select("codigo")
+        .eq("codigo", codigo)
+        .eq("centro", centro)
+        .eq("almacen", almacen)
+        .eq("lote", lote)
+        .maybeSingle();
+
+              const mapaEmpresas = {
+                "P4B6": "DESYSWEB",
+                "P4A3": "CYBERTEL",
+                "P4B9": "MATSU GROUP",
+                "P4D5": "LOS LAURELES",
+                // agrega más si es necesario
+              };
+              
+              const empresa = mapaEmpresas[centro] || "SIN EMPRESA";
+        
+                const mapaZonas = {
+                 "I115": "Lima",
+                 "X115": "Lima",                
+                 "Y115": "Lima",             
+                 "I104": "Arequipa",
+                 "Y104": "Arequipa",
+                 "X104": "Arequipa",
+                 "X105": "Ayacucho",
+                 "X111": "Ica",
+                 "X122": "San Martin",
+                 "X112": "Huancayo",
+                 "X110": "Huanuco",
+                // Agrega todos los que necesites
+              };
+              
+              const zona = mapaZonas[almacen] || "SIN ZONA";
+        // Buscar descripción desde tabla productos
+        const { data: maestro } = await supabase
+          .from("productos")
+          .select("descripcion")
+          .eq("codigo", codigo)
+          .maybeSingle();
+        
+        const descripcion = maestro?.descripcion || "SIN DESCRIPCIÓN";
+        
+        // Generar fecha SAP en horario Lima
+        const fecha_carga_sap = new Date().toLocaleString("sv-SE", { timeZone: "America/Lima" }).replace(" ", "T");
+      if (existe) {
+        const { error: errorUpdate } = await supabase
+          .from("stock_contrata")
+          .update({ cantidad_sap, fecha_carga_sap })
+          .eq("codigo", codigo)
+          .eq("centro", centro)
+          .eq("almacen", almacen)
+          .eq("lote", lote);
+
+        errorUpdate ? errores++ : actualizados++;
+      } else {
+        const { error: errorInsert } = await supabase
+          .from("stock_contrata")
+         .insert([{
+            codigo,
+            centro,
+            almacen,
+            lote,
+            cantidad_sap,
+            empresa,
+            zona,
+            descripcion,
+            fecha_carga_sap
+          }]);
+
+        errorInsert ? errores++ : insertados++;
+      }
+    }
+let eliminados = 0;
+            // ⛔ Eliminar registros antiguos del mismo centro+almacén no presentes en la nueva carga
+    const clavesActualizadas = new Set();
+    const centrosAlmacenes = new Set();
+    
+    data.forEach(fila => {
+      const codigo = fila["Código"]?.toString().trim();
+      const centro = fila["Centro"]?.toString().trim();
+      const almacen = fila["Almacén"]?.toString().trim();
+      const lote = fila["Lote"]?.toString().trim();
+    
+      if (codigo && centro && almacen && lote) {
+        const clave = `${codigo}||${centro}||${almacen}||${lote}`;
+        clavesActualizadas.add(clave);
+        centrosAlmacenes.add(`${centro}||${almacen}`);
+      }
+    });
+    
+    for (const ca of centrosAlmacenes) {
+      const [centro, almacen] = ca.split("||");
+    
+      const { data: existentes } = await supabase
+        .from("stock_contrata")
+        .select("codigo, centro, almacen, lote")
+        .eq("centro", centro)
+        .eq("almacen", almacen);
+    
+      if (existentes && existentes.length > 0) {
+        for (const r of existentes) {
+          const clave = `${r.codigo}||${r.centro}||${r.almacen}||${r.lote}`;
+          if (!clavesActualizadas.has(clave)) {
+            await supabase
+              .from("stock_contrata")
+              .delete()
+              .eq("codigo", r.codigo)
+              .eq("centro", r.centro)
+              .eq("almacen", r.almacen)
+              .eq("lote", r.lote);
+              eliminados++; 
+          }
+        }
+      }
+    }
+
+    
+    Swal.fire({
+      icon: 'info',
+      title: 'Carga completada',
+      html: `
+        ✅ <b>${actualizados}</b> registros actualizados<br>
+        ➕ <b>${insertados}</b> registros insertados<br>
+        ❌ <b>${eliminados}</b> registros eliminados<br>
+        ⚠️ <b>${errores}</b> errores`,
+      toast: true,
+      position: 'bottom-end',
+      showConfirmButton: false,
+      timer: 5000,
+      timerProgressBar: true,
+      background: '#1e2022',
+      color: '#ffffff',
+      iconColor: '#f39c12'
+    });
+
+    await window.cargarStockContrata();
+    document.getElementById("loader").style.display = "none";
+  };
+
+  reader.readAsBinaryString(file);
+}
+
+    
   function renderizarControlesPaginacion() {
   const contenedor = document.getElementById("paginacion");
   contenedor.innerHTML = "";
