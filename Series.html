@@ -819,12 +819,20 @@ async function procesarCargaSoporte(file) {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const data = XLSX.utils.sheet_to_json(sheet);
 
+    const ESTADOS_SOPORTE_VALIDOS = ["PENDIENTE", "OBSERVADO", "VALIDADO", "RECHAZADO"];
     const registrosValidos = [];
     let fallos = 0;
 
     for (const fila of data) {
       // Validación básica de clave
       if (!fila['Código'] || !fila['Centro'] || !fila['Almacén'] || !fila['N° Serie']) {
+        fallos++;
+        continue;
+      }
+
+      let estadoSoporte = (fila['Estado Soporte'] || 'PENDIENTE').toUpperCase();
+
+      if (!ESTADOS_SOPORTE_VALIDOS.includes(estadoSoporte)) {
         fallos++;
         continue;
       }
