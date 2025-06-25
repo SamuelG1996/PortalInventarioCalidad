@@ -118,6 +118,12 @@ function formatearFechaSegura(fechaString) {
   if (dias > 180) return 'naranja-suave';
   return 'verde-suave';
 }
+
+  function obtenerFechaLocalISO() {
+  const fecha = new Date();
+  fecha.setMinutes(fecha.getMinutes() - fecha.getTimezoneOffset()); // corrige UTC ↔ local
+  return fecha.toISOString().split('T')[0];
+}
 </script>
   
 <script>
@@ -437,7 +443,7 @@ async function procesarExcelSeries(file) {
         proyecto_sot: fila.SOT || '-',
         cliente: (fila.Cliente || '-').toString().trim(),
         id_devolucion: fila['ID Devolución/Traspaso'] || '-',
-        fecha_estado_contrata: new Date().toLocaleDateString('sv-SE'),
+        fecha_estado_contrata: obtenerFechaLocalISO(),
         comentario_contrata: fila['Comentario Contrata'] || '-'
       });
     }
@@ -845,7 +851,7 @@ async function procesarCargaSoporte(file) {
         nro_serie: fila['N° Serie'],
         estado_soporte: fila['Estado Soporte'] || '-',
         comentario_soporte: fila['Comentario Soporte'] || '-',
-        fecha_estado_soporte: new Date().toLocaleDateString('sv-SE'),
+        fecha_estado_soporte: obtenerFechaLocalISO(),
         estado_conciliacion: fila['Estado Conciliación'] || '-',
         subestado_conciliacion: fila['Subestado Conciliación'] || '-'
       });
