@@ -361,7 +361,7 @@ async function descargarExcelSeries() {
       "Comentario Contrata": serie.comentario_contrata,
       "Estado Soporte": serie.estado_soporte,
       "Comentario Soporte": serie.comentario_soporte,
-      "Fecha Estado Soporte": formatearFechaSegura(serie.fecha_estado_soporte)
+      "Fecha Estado Soporte": formatearFechaSegura(serie.fecha_estado_soporte),
       "Estado Conciliación": serie.estado_conciliacion || '-',
       "Subestado Conciliación": serie.subestado_conciliacion || '-'
     }));
@@ -776,7 +776,7 @@ function descargarPlantillaEstadoSoporte() {
       "Lote": "",
       "N° Serie": "",
       "Estado Soporte": "",
-      "Comentario Soporte": ""
+      "Comentario Soporte": "",
       "Estado Conciliación": "",
       "Subestado Conciliación": ""
     }
